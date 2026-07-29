@@ -1,14 +1,14 @@
 # Define your site below.
 # Run the compiler and it will generate HTML, create a GitHub repo, and deploy to Vercel.
 
-site "my-portfolio" {
-  title       = "Jane Doe — UVG 2026"
-  description = "CS student building compilers at Universidad del Valle de Guatemala"
+site "my-portfolio-compilers" {
+  title       = "María José Girón Isidro, Leonardo Dufrey Mejía Mejía, Milton Giovanni Palanco Serrano — UVG 2026"
+  description = "Estudiantes de CS construyendo compiladores"
   theme       = "dark"
 
   page "index" {
-    hero    = "Hello, I built this site with a compiler I wrote!"
-    about   = "I am a CS student at UVG. This page was generated from a custom DSL, pushed to GitHub, and deployed to Vercel — all by my ANTLR compiler."
-    contact = "jane.doe@example.com"
+    hero    = "¿Por qué fue la computadora al dentista? Para que le revisaran el Bluetooth."
+    about   = "Somos unos estudiantes de Ciencia de computación en la UVG. Esta página se ha generado a partir de un DSL personalizado, se ha subido a GitHub y se ha implementado en Vercel, todo ello gracias a mi compilador ANTLR."
+    contact = "gir23559@uvg.edu.gt, mej23648@uvg.edu.gt, pol471@uvg.edu.gt"
   }
 }

@@ -111,6 +111,8 @@ class SiteDeployListener(SiteLangListener):
             "auto_init": False
         }
         resp = requests.post("https://api.github.com/user/repos", headers=headers, json=payload)
+        print("Status:", resp.status_code)
+        print("Response:", resp.text)
         resp.raise_for_status()
         repo = resp.json()
         print(f"[+] GitHub repo created: {repo['html_url']}")

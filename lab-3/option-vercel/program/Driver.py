@@ -12,7 +12,7 @@ def main(argv):
         print("Error: GITHUB_TOKEN and VERCEL_TOKEN must be set in your .env file.")
         sys.exit(1)
 
-    input_stream = FileStream(argv[1])
+    input_stream = FileStream(argv[1], encoding="utf-8")
     lexer = SiteLangLexer(input_stream)
     stream = CommonTokenStream(lexer)
     parser = SiteLangParser(stream)
