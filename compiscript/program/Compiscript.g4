@@ -9,7 +9,6 @@ program: statement* EOF;
 statement
   : variableDeclaration
   | constantDeclaration
-  | assignment
   | functionDeclaration
   | classDeclaration
   | expressionStatement
@@ -41,8 +40,7 @@ typeAnnotation: ':' type;
 initializer: '=' expression;
 
 assignment
-  : Identifier '=' expression ';'
-  | expression '.' Identifier '=' expression ';' // property assignment
+  : leftHandSide '=' expression ';'
   ;
 
 expressionStatement: expression ';';
@@ -78,7 +76,6 @@ expression: assignmentExpr;
 
 assignmentExpr
   : lhs=leftHandSide '=' assignmentExpr            # AssignExpr
-  | lhs=leftHandSide '.' Identifier '=' assignmentExpr # PropertyAssignExpr
   | conditionalExpr                                # ExprNoAssign
   ;
 
@@ -122,7 +119,8 @@ primaryExpr
   ;
 
 literalExpr
-  : Literal
+  : FloatLiteral
+  | Literal
   | arrayLiteral
   | 'null'
   | 'true'
@@ -154,7 +152,7 @@ arrayLiteral: '[' (expression (',' expression)*)? ']';
 // ------------------
 
 type: baseType ('[' ']')*;
-baseType: 'boolean' | 'integer' | 'string' | Identifier;
+baseType: 'boolean' | 'integer' | 'float' | 'string' | Identifier;
 
 // ------------------
 // Lexer Rules
@@ -165,6 +163,7 @@ Literal
   | StringLiteral
   ;
 
+FloatLiteral: [0-9]+ '.' [0-9]+;
 IntegerLiteral: [0-9]+;
 StringLiteral: '"' (~["\r\n])* '"';
 
