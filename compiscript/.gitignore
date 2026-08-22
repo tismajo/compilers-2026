@@ -1,2 +1,9 @@
 configs
-program/__pycache__
+.venv/
+__pycache__/
+*.py[cod]
+
+# Extensión de VS Code
+extension/node_modules/
+extension/out/
+extension/*.vsix
