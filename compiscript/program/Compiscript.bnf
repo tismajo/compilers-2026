@@ -2,7 +2,6 @@
 
 <statement> ::= <variableDeclaration>
               | <constantDeclaration>
-              | <assignment>
               | <functionDeclaration>
               | <classDeclaration>
               | <expressionStatement>
@@ -26,8 +25,7 @@
 <typeAnnotation> ::= ":" <type>
 <initializer> ::= "=" <expression>
 
-<assignment> ::= <Identifier> "=" <expression> ";"
-              | <expression> "." <Identifier> "=" <expression> ";"
+<assignment> ::= <leftHandSide> "=" <expression> ";"
 
 <expressionStatement> ::= <expression> ";"
 <printStatement> ::= "print" "(" <expression> ")" ";"
@@ -57,7 +55,6 @@
 <expression> ::= <assignmentExpr>
 
 <assignmentExpr> ::= <leftHandSide> "=" <assignmentExpr>
-                  | <leftHandSide> "." <Identifier> "=" <assignmentExpr>
                   | <conditionalExpr>
 
 <conditionalExpr> ::= <logicalOrExpr> [ "?" <expression> ":" <expression> ]
@@ -76,7 +73,7 @@
                 | <leftHandSide>
                 | "(" <expression> ")"
 
-<literalExpr> ::= <Literal> | <arrayLiteral> | "null" | "true" | "false"
+<literalExpr> ::= <FloatLiteral> | <Literal> | <arrayLiteral> | "null" | "true" | "false"
 
 <leftHandSide> ::= <primaryAtom> { <suffixOp> }
 
@@ -92,4 +89,6 @@
 <arrayLiteral> ::= "[" [ <expression> { "," <expression> } ] "]"
 
 <type> ::= <baseType> { "[" "]" }
-<baseType> ::= "boolean" | "integer" | "string" | <Identifier>
+<baseType> ::= "boolean" | "integer" | "float" | "string" | <Identifier>
+
+<FloatLiteral> ::= <Digit> { <Digit> } "." <Digit> { <Digit> }
