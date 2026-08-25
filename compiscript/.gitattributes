@@ -1,0 +1,6 @@
+# Los scripts que se ejecutan dentro del contenedor tienen que conservar el
+# fin de línea LF. Sin esto, un clon en Windows con core.autocrlf=true los deja
+# con CRLF y el kernel del contenedor rechaza el shebang:
+#   exec /usr/local/bin/antlr: no such file or directory
+commands/* text eol=lf
+*.sh text eol=lf
