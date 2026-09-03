@@ -1,0 +1,1 @@
+"""Compiscript test suite."""
