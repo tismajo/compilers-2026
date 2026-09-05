@@ -1,0 +1,98 @@
+name: Compiscript
+
+on:
+  push:
+    paths:
+      - "compiscript/**"
+      - ".github/workflows/compiscript-tests.yml"
+  pull_request:
+    paths:
+      - "compiscript/**"
+      - ".github/workflows/compiscript-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  compilador:
+    name: Compilador
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: compiscript
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Java
+        # tests/test_grammar.py valida la gramática con el JAR de ANTLR.
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Verificar que el parser generado está en el repositorio
+        run: |
+          test -f program/CompiscriptLexer.py
+          test -f program/CompiscriptParser.py
+          test -f program/CompiscriptVisitor.py
+
+      - name: Ejecutar la suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Analizar el programa oficial
+        run: python program/Driver.py program/program.cps --format json --symbols json
+
+      - name: Reporte de cobertura
+        run: python tests/coverage_report.py
+
+  extension:
+    name: Extensión de VS Code
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: compiscript/extension
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        # Las pruebas de integración de la extensión ejecutan el compilador real.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar el runtime de ANTLR
+        working-directory: compiscript
+        run: pip install -r requirements.txt
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+
+      - name: Verificación de tipos
+        run: npm run lint
+
+      - name: Compilar y probar
+        run: npm test
+
+      - name: Empaquetar el .vsix
+        run: npx vsce package --no-dependencies --allow-missing-repository
+
+      - name: Publicar el paquete como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiscript-vsix
+          path: compiscript/extension/*.vsix
