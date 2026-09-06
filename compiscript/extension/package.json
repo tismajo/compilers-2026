@@ -1,0 +1,115 @@
+{
+  "name": "compiscript",
+  "displayName": "Compiscript",
+  "description": "IDE para Compiscript: resaltado, análisis semántico, árbol sintáctico y tabla de símbolos.",
+  "version": "0.1.0",
+  "publisher": "uvg-compiladores",
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "compiscript",
+    "compiladores",
+    "antlr",
+    "uvg"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "compiscript",
+        "aliases": [
+          "Compiscript",
+          "compiscript"
+        ],
+        "extensions": [
+          ".cps"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/icon.png",
+          "dark": "./images/icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "compiscript",
+        "scopeName": "source.compiscript",
+        "path": "./syntaxes/compiscript.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "compiscript.analyze",
+        "title": "Compiscript: Analizar archivo"
+      },
+      {
+        "command": "compiscript.showTree",
+        "title": "Compiscript: Mostrar árbol"
+      },
+      {
+        "command": "compiscript.showSymbols",
+        "title": "Compiscript: Mostrar tabla de símbolos"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceLangId == compiscript",
+          "command": "compiscript.analyze",
+          "group": "compiscript@1"
+        },
+        {
+          "when": "resourceLangId == compiscript",
+          "command": "compiscript.showTree",
+          "group": "compiscript@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Compiscript",
+      "properties": {
+        "compiscript.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "markdownDescription": "Intérprete de Python usado para ejecutar el compilador. Puede ser una ruta absoluta, por ejemplo `${workspaceFolder}/.venv/Scripts/python.exe`."
+        },
+        "compiscript.compilerPath": {
+          "type": "string",
+          "default": "${workspaceFolder}/program/Driver.py",
+          "markdownDescription": "Ruta al `Driver.py` del compilador. Acepta `${workspaceFolder}`."
+        },
+        "compiscript.analyzeOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Analizar automáticamente el archivo al guardarlo."
+        },
+        "compiscript.showSummary": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mostrar el resumen de compilación en la barra de estado y en el panel de salida."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -p . --watch",
+    "lint": "tsc -p . --noEmit",
+    "test": "node --test out/test",
+    "pretest": "npm run compile",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
+    "typescript": "^5.4.0"
+  }
+}
