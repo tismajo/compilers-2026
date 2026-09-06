@@ -278,3 +278,145 @@ Todos los archivos fuente de Compiscript deben usar la extensión:
 ```bash
 program.cps
 ```
+
+---
+
+## Documentación
+
+| Documento | Contenido |
+| --- | --- |
+| [`docs/arquitectura.md`](docs/arquitectura.md) | Componentes, flujo de compilación, diagramas y estructura del parse tree |
+| [`docs/uso.md`](docs/uso.md) | Guía completa: requisitos, instalación, Docker, CLI, pruebas y ejemplos |
+| [`docs/tabla-de-simbolos.md`](docs/tabla-de-simbolos.md) | Modelo de tipos, símbolos, ámbitos y las dos pasadas |
+| [`docs/reglas-semanticas.md`](docs/reglas-semanticas.md) | Catálogo de los 35 diagnósticos y las reglas que los producen |
+| [`docs/visualizacion.md`](docs/visualizacion.md) | Formato del árbol y renderizadores HTML y SVG |
+| [`docs/pruebas.md`](docs/pruebas.md) | Organización de la suite, fixtures, cobertura e integración continua |
+| [`docs/decisiones.md`](docs/decisiones.md) | Contradicciones del enunciado y qué se decidió en cada caso |
+| [`extension/README.md`](extension/README.md) | Instalación, configuración y comandos del IDE |
+
+## Frontend sintáctico
+
+La gramática genera Lexer, Parser, Listener y Visitor para Python. Los archivos
+generados están incluidos en `program`, pero pueden regenerarse con:
+
+```bash
+cd program
+antlr -Dlanguage=Python3 -visitor Compiscript.g4
+```
+
+Instale primero el runtime cuya versión coincide con el JAR del proyecto:
+
+```bash
+pip install -r requirements.txt
+```
+
+Analice un archivo y obtenga diagnósticos legibles:
+
+```bash
+python3 program/Driver.py program/program.cps
+```
+
+La salida JSON está pensada para la extensión de VS Code:
+
+```bash
+python3 program/Driver.py program/program.cps --format json
+```
+
+También se puede incluir el parse tree en formato Lisp o JSON:
+
+```bash
+python3 program/Driver.py program/program.cps --format json --tree json
+```
+
+El proceso retorna `0` cuando el archivo es válido, `1` cuando existen errores
+léxicos, sintácticos o semánticos, y `2` cuando no se puede abrir el archivo
+solicitado.
+
+## Análisis semántico
+
+El análisis semántico se ejecuta automáticamente cuando el archivo no tiene
+errores sintácticos, sobre el mismo parse tree, sin volver a analizarlo. Para
+detenerse en la fase sintáctica:
+
+```bash
+python3 program/Driver.py program/program.cps --no-semantic
+```
+
+La tabla de símbolos se puede imprimir de forma legible o en JSON:
+
+```bash
+python3 program/Driver.py program/program.cps --symbols text
+python3 program/Driver.py program/program.cps --format json --symbols json
+```
+
+## IDE: extensión de VS Code
+
+La extensión vive en [`extension/`](extension/) y convierte a VS Code en el IDE
+del lenguaje: resaltado de sintaxis, diagnósticos en el panel *Problems*, árbol
+sintáctico interactivo y tabla de símbolos.
+
+```bash
+cd extension
+npm install
+npm run compile
+npm run package                                  # genera compiscript-0.1.0.vsix
+code --install-extension compiscript-0.1.0.vsix
+```
+
+La extensión invoca este mismo `Driver.py`; **Docker no es necesario**. En
+Windows conviene apuntar al entorno virtual del repositorio:
+
+```json
+{ "compiscript.pythonPath": "${workspaceFolder}/.venv/Scripts/python.exe" }
+```
+
+La instalación, la configuración y los comandos están documentados en
+[`extension/README.md`](extension/README.md).
+
+## Visualización del árbol
+
+El árbol puede exportarse como documento HTML interactivo, como SVG o como JSON
+enriquecido con los tipos inferidos y las marcas de diagnóstico:
+
+```bash
+# grafo con Graphviz (representación visual recomendada)
+python3 program/Driver.py program/program.cps --tree dot --tree-compact --tree-out arbol.dot
+dot -Tpng arbol.dot -o arbol.png
+
+python3 program/Driver.py program/program.cps --tree html --tree-out arbol.html
+python3 program/Driver.py program/program.cps --tree svg --tree-out arbol.svg
+python3 program/Driver.py program/program.cps --tree json --tree-out arbol.json
+```
+
+El `.dot` lo genera el compilador con la librería estándar, sin dependencias
+nuevas; Graphviz solo hace falta para convertirlo en imagen.
+
+El formato y los renderizadores están descritos en
+[`docs/visualizacion.md`](docs/visualizacion.md).
+
+El modelo de tipos, los ámbitos y las dos pasadas están documentados en
+[`docs/tabla-de-simbolos.md`](docs/tabla-de-simbolos.md). El catálogo completo
+de reglas y diagnósticos está en
+[`docs/reglas-semanticas.md`](docs/reglas-semanticas.md).
+
+### Pruebas
+
+Desde la raíz del proyecto ejecute:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+`tests/test_grammar.py` valida la gramática directamente con Java y el JAR
+incluido, `tests/test_syntax.py` el frontend Python, `tests/test_cli.py` los
+códigos y formatos de salida, y `tests/rules/` la batería semántica completa,
+con al menos un caso exitoso y uno fallido por regla.
+
+El reporte de cobertura usa solo la librería estándar:
+
+```bash
+python3 tests/coverage_report.py
+```
+
+La organización de la suite y la convención de fixtures están en
+[`docs/pruebas.md`](docs/pruebas.md).
