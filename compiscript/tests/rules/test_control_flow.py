@@ -35,6 +35,10 @@ class ConditionTests(SemanticTestCase):
         source = 'for (let i: integer = 0; "a"; i = i + 1) { print(i); }'
         self.assert_diagnostic(source, "SEM106", line=1)
 
+    def test_for_with_empty_initializer_still_checks_the_condition(self) -> None:
+        source = 'let i: integer = 0;\nfor (; "a"; i = i + 1) { print(i); }'
+        self.assert_diagnostic(source, "SEM106", line=2)
+
 
 class ForeachTests(SemanticTestCase):
     def test_foreach_over_an_array_infers_the_element_type(self) -> None:

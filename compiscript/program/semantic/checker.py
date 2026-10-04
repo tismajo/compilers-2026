@@ -421,20 +421,26 @@ class Checker(CompiscriptVisitor):
         self.env.pop()
         return None
 
-    def _for_sections(self, ctx: Any) -> tuple[Any, Any]:
-        """Split ``for`` into condition and step around its direct ``;``."""
+    @staticmethod
+    def _for_sections(ctx: Any) -> tuple[Any, Any]:
+        """Split ``for`` into condition and step around its last direct ``;``.
+
+        A bare ``;`` used as initializer is also a direct child, so only the
+        last one separates the condition from the step. Shared with the TAC
+        generator.
+        """
+        children = [ctx.getChild(index) for index in range(ctx.getChildCount())]
+        separator = max(
+            index for index, child in enumerate(children) if child.getText() == ";"
+        )
         condition_ctx = None
         step_ctx = None
-        passed_semicolon = False
-        for index in range(ctx.getChildCount()):
-            child = ctx.getChild(index)
+        for index, child in enumerate(children):
             if isinstance(child, CompiscriptParser.ExpressionContext):
-                if passed_semicolon:
+                if index > separator:
                     step_ctx = child
                 else:
                     condition_ctx = child
-            elif child.getText() == ";":
-                passed_semicolon = True
         return condition_ctx, step_ctx
 
     def visitForeachStatement(self, ctx: CompiscriptParser.ForeachStatementContext):
