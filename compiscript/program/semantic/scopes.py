@@ -174,6 +174,10 @@ class Environment:
 
     def _record_capture(self, name: str, owner_scope: Scope) -> None:
         holder = owner_scope.function_owner
+        # Globals live in static storage: reaching them is not a capture, and
+        # this keeps a recursive top-level function from capturing itself.
+        if holder is None:
+            return
         for function in reversed(self.function_stack):
             if function is holder:
                 break
