@@ -76,11 +76,16 @@ class Checker(CompiscriptVisitor):
         # ``id(ctx) -> type name`` for every expression, consumed by the tree
         # visualization so it can label nodes with their inferred type.
         self.types: dict[int, str] = {}
+        # The TAC generator needs the real ``Type`` objects and, for every
+        # identifier and declaration, the exact symbol it resolved to.
+        self.type_objects: dict[int, Type] = {}
+        self.bindings: dict[int, Symbol] = {}
 
     def visit(self, tree: Any) -> Any:
         result = super().visit(tree)
         if isinstance(result, Type):
             self.types[id(tree)] = str(result)
+            self.type_objects[id(tree)] = result
         return result
 
     # -- entry point ----------------------------------------------------
@@ -147,6 +152,7 @@ class Checker(CompiscriptVisitor):
             initialized=value_ctx is not None,
         )
         symbol.length = self._literal_length(value_ctx)  # type: ignore[attr-defined]
+        self.bindings[id(ctx)] = symbol
         clash = self.env.define(symbol)
         if clash is not None:
             self.bag.add(
@@ -870,6 +876,7 @@ class Checker(CompiscriptVisitor):
             if symbol is None:
                 self.bag.add("SEM201", f"'{name}' no ha sido declarado", line, column)
                 return Target(ERROR, "value", line=line, column=column)
+            self.bindings[id(ctx)] = symbol
             kind = {
                 SymbolCategory.CONSTANT: "constant",
                 SymbolCategory.FUNCTION: "callable",

@@ -13,6 +13,8 @@ from .checker import Checker
 from .collector import Collector
 from .diagnostics import Diagnostic, DiagnosticBag
 from .symbol_table import SymbolTable
+from .symbols import Symbol
+from .types import Type
 
 
 @dataclass
@@ -21,6 +23,11 @@ class SemanticResult:
     diagnostics: list[Diagnostic] = field(default_factory=list)
     # ``id(ctx) -> type name`` for every typed expression node.
     types: dict[int, str] = field(default_factory=dict)
+    # Consumed by the TAC generator: ``id(ctx) -> Type`` for expressions,
+    # ``id(ctx) -> Symbol`` for identifiers and declarations.
+    type_objects: dict[int, Type] = field(default_factory=dict)
+    bindings: dict[int, Symbol] = field(default_factory=dict)
+    declared: dict[int, Symbol] = field(default_factory=dict)
 
     @property
     def success(self) -> bool:
@@ -41,4 +48,7 @@ def analyze(program_ctx: Any) -> SemanticResult:
         symbols=table,
         diagnostics=bag.sorted_items(),
         types=checker.types,
+        type_objects=checker.type_objects,
+        bindings=checker.bindings,
+        declared=checker.declared,
     )
