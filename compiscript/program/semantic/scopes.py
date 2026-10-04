@@ -108,7 +108,7 @@ class Scope:
         for symbol in self.symbols.values():
             lines.append(
                 f"{pad}  - {symbol.category.value} {symbol.name}: {symbol.type} "
-                f"({symbol.line}:{symbol.column})"
+                f"({symbol.line}:{symbol.column}){_address(symbol)}"
             )
         for child in self.children:
             lines.append(child.render(indent + 1))
@@ -182,3 +182,14 @@ class Environment:
             if function is holder:
                 break
             function.capture(name)
+
+
+def _address(symbol: Symbol) -> str:
+    """Address suffix once the TAC layout has filled the reserved fields."""
+    if symbol.storage is None:
+        return ""
+    if symbol.offset is None:
+        return f" [{symbol.storage} {symbol.label}]"
+    base = {"stack": "fp", "global": "data", "heap": "obj"}.get(symbol.storage, "")
+    sign = "+" if symbol.offset >= 0 else ""
+    return f" [{symbol.storage} {base}{sign}{symbol.offset}, {symbol.size}B]"

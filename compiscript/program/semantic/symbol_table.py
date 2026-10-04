@@ -14,6 +14,9 @@ class SymbolTable:
     def __init__(self, environment: Optional[Environment] = None) -> None:
         self.environment = environment or Environment()
         self.classes: dict[str, ClassSymbol] = {}
+        # Filled by ``tac.layout`` when intermediate code is generated.
+        self.activation_records: list[Any] = []
+        self.globals_size: Optional[int] = None
 
     @property
     def global_scope(self) -> Scope:
@@ -33,10 +36,21 @@ class SymbolTable:
             yield from scope.symbols.values()
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "scopes": self.global_scope.as_dict(),
             "classes": [item.as_dict() for item in self.classes.values()],
         }
+        if self.globals_size is not None:
+            payload["globalsSize"] = self.globals_size
+            payload["activationRecords"] = [
+                item.as_dict() for item in self.activation_records
+            ]
+        return payload
 
     def render(self) -> str:
-        return self.global_scope.render()
+        text = self.global_scope.render()
+        if self.globals_size is None:
+            return text
+        frames = [f"globals: {self.globals_size} bytes"]
+        frames.extend(item.render() for item in self.activation_records)
+        return text + "\n\n" + "\n".join(frames)
