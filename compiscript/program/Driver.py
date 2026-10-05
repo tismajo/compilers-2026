@@ -1,7 +1,8 @@
 """Command-line frontend for the Compiscript compiler.
 
 Parsing is kept separate from semantic analysis: the tree produced here is
-handed to ``semantic.analyze`` without parsing the source a second time.
+handed to ``semantic.analyze`` without parsing the source a second time, and
+the same tree plus the semantic result feed ``tac.generate``.
 """
 
 from __future__ import annotations
@@ -19,7 +20,9 @@ from antlr4.error.ErrorListener import ErrorListener
 from CompiscriptLexer import CompiscriptLexer
 from CompiscriptParser import CompiscriptParser
 import treeview
+import tac
 from semantic import analyze
+from semantic.analyzer import SemanticResult
 from semantic.diagnostics import Diagnostic
 from semantic.symbol_table import SymbolTable
 
@@ -34,6 +37,8 @@ class AnalysisResult:
     diagnostics: list[Diagnostic] = field(default_factory=list)
     symbols: SymbolTable | None = None
     types: dict[int, str] = field(default_factory=dict)
+    semantic: SemanticResult | None = None
+    tac: tac.TacProgram | None = None
 
     @property
     def success(self) -> bool:
@@ -67,7 +72,16 @@ class AnalysisResult:
                 payload["treeFormat"] = tree_format
         if self.symbols is not None and symbol_format == "json":
             payload["symbols"] = self.symbols.as_dict()
+        if self.tac is not None:
+            payload["tac"] = self.tac.as_dict()
         return payload
+
+    def generate_tac(self) -> tac.TacProgram | None:
+        """Intermediate code, only for a program without errors."""
+        if self.semantic is None or self.tree is None or not self.success:
+            return None
+        self.tac = tac.generate(self.tree, self.semantic)
+        return self.tac
 
 
 class CollectingErrorListener(ErrorListener):
@@ -125,6 +139,7 @@ def analyze_file(source_path: str | Path, semantic: bool = True) -> AnalysisResu
     # A broken parse tree would produce meaningless semantic diagnostics.
     if semantic and result.success:
         semantic_result = analyze(tree)
+        result.semantic = semantic_result
         result.symbols = semantic_result.symbols
         result.types = semantic_result.types
         result.diagnostics.extend(semantic_result.diagnostics)
@@ -168,6 +183,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         choices=("none", "text", "json"),
         default="none",
         help="Include the symbol table in the output",
+    )
+    parser.add_argument(
+        "--tac",
+        choices=("none", "text", "json"),
+        default="none",
+        help="Generate three-address code (text, or a 'tac' field with --format json)",
     )
     parser.add_argument(
         "--no-semantic",
@@ -240,6 +261,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     result = analyze_file(path, semantic=not args.no_semantic)
+    # Before building the payload: generating TAC also fills the addresses
+    # and activation records that ``--symbols`` prints.
+    if args.tac != "none":
+        result.generate_tac()
     payload = result.as_dict(args.tree, args.symbols)
 
     document = tree_document(
@@ -266,6 +291,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(json.dumps(result.symbols.as_dict(), ensure_ascii=False, indent=2))
             else:
                 print(result.symbols.render())
+        if args.tac != "none":
+            if result.tac is not None:
+                print(result.tac.render())
+            else:
+                print("No se generó código intermedio: el programa tiene errores.", file=sys.stderr)
 
     return 0 if result.success else 1
 
