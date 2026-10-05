@@ -84,3 +84,28 @@ class SemanticTestCase(unittest.TestCase):
         expected_success = severity != "error"
         self.assertEqual(expected_success, result.success)
         return result
+
+
+@requires_runtime
+class TacTestCase(SemanticTestCase):
+    """Generates three-address code through the same entry point as the CLI."""
+
+    def generate(self, source: str) -> Any:
+        result = self.assert_ok(source)
+        self.assertIsNotNone(result.generate_tac())
+        return result
+
+    def code(self, source: str, label: str = "main") -> list[str]:
+        """Instructions of one function, without its header and frame markers."""
+        function = self.generate(source).tac.function(label)
+        self.assertIsNotNone(function, f"no se generó la función {label}")
+        return [
+            quad.render()
+            for quad in function.quads
+            if quad.op not in ("begin_func", "end_func")
+        ]
+
+    def frame(self, result: Any, label: str) -> Any:
+        return next(
+            item for item in result.symbols.activation_records if item.label == label
+        )
