@@ -34,7 +34,8 @@ from semantic.types import FLOAT, VOID, Type
 
 WORD = 4
 FRAME_HEADER = 2 * WORD  # control link + return address
-OBJECT_HEADER = WORD  # class descriptor
+OBJECT_HEADER = WORD  # class descriptor (vtable pointer)
+ARRAY_HEADER = WORD  # element count
 TEMP_SIZE = WORD
 
 
@@ -119,14 +120,56 @@ class Layout:
         self.records: dict[int, ActivationRecord] = {}
         self.globals_size = 0
         self._class_sizes: dict[str, int] = {}
+        self._vtables: dict[str, list[tuple[str, str]]] = {}
 
     def run(self) -> "Layout":
         for symbol in self.table.classes.values():
             self._lay_out_class(symbol)
+            self._build_vtable(symbol)
         self._walk(self.table.global_scope, None, [])
         self.table.activation_records = list(self.records.values())
         self.table.globals_size = self.globals_size
         return self
+
+    # -- vtables ----------------------------------------------------------
+    def _build_vtable(self, symbol: ClassSymbol) -> list[tuple[str, str]]:
+        """Dispatch table of ``symbol``: parent slots first, same index kept
+        on override, new methods appended. The constructor never dispatches
+        dynamically, so it is excluded."""
+        if symbol.name in self._vtables:
+            return self._vtables[symbol.name]
+        self._vtables[symbol.name] = []  # guards inheritance cycles, like `_lay_out_class`
+        slots = list(self._build_vtable(symbol.parent)) if symbol.parent else []
+        for name, method in symbol.methods.items():
+            if name == "constructor":
+                continue  # never dispatched dynamically, called directly by ``new``
+            label = f"{symbol.name}_{name}"
+            for index, (slot_name, _) in enumerate(slots):
+                if slot_name == name:
+                    slots[index] = (name, label)
+                    break
+            else:
+                slots.append((name, label))
+        self._vtables[symbol.name] = slots
+        return slots
+
+    def vtable_slot(self, class_name: str, method_name: str) -> int:
+        slots = self._vtables.get(class_name, [])
+        for index, (name, _) in enumerate(slots):
+            if name == method_name:
+                return index
+        raise KeyError(f"'{method_name}' no está en la vtable de '{class_name}'")
+
+    @staticmethod
+    def vtable_label(class_name: str) -> str:
+        return f"{class_name}_vtable"
+
+    def vtable_data(self) -> list[tuple[str, str, list[str]]]:
+        """``(class_name, vtable_label, [slot labels])`` for every class."""
+        return [
+            (name, self.vtable_label(name), [label for _, label in slots])
+            for name, slots in self._vtables.items()
+        ]
 
     def record_for(self, function: FunctionSymbol) -> ActivationRecord:
         return self.records[id(function)]
