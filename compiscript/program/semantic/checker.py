@@ -460,15 +460,17 @@ class Checker(CompiscriptVisitor):
                 iterable_column,
             )
         scope = self.env.push(ScopeKind.FOREACH, f"foreach@{line}", line, column)
-        scope.define(
-            VariableSymbol(
-                name=name,
-                type=element_type,
-                line=line,
-                column=column,
-                initialized=True,
-            )
+        element_symbol = VariableSymbol(
+            name=name,
+            type=element_type,
+            line=line,
+            column=column,
+            initialized=True,
         )
+        scope.define(element_symbol)
+        # The TAC generator needs this exact symbol (its TAC name and frame
+        # slot are computed later from the object, not from the name alone).
+        self.bindings[id(ctx)] = element_symbol
         self.env.loop_depth += 1
         self.visit(ctx.block())
         self.env.loop_depth -= 1
@@ -483,15 +485,15 @@ class Checker(CompiscriptVisitor):
         line, column = position(name_node)
         scope = self.env.push(ScopeKind.CATCH, f"catch@{line}", line, column)
         # Decision 7: the catch variable is a string.
-        scope.define(
-            VariableSymbol(
-                name=name,
-                type=STRING,
-                line=line,
-                column=column,
-                initialized=True,
-            )
+        err_symbol = VariableSymbol(
+            name=name,
+            type=STRING,
+            line=line,
+            column=column,
+            initialized=True,
         )
+        scope.define(err_symbol)
+        self.bindings[id(ctx)] = err_symbol
         self.visit(blocks[1])
         self.env.pop()
         return None
@@ -869,10 +871,27 @@ class Checker(CompiscriptVisitor):
     # Left-hand sides, calls and members
     # ------------------------------------------------------------------
     def _lhs_target(self, ctx: Any) -> Target:
-        target = self._atom_target(ctx.primaryAtom())
+        atom = ctx.primaryAtom()
+        target = self._atom_target(atom)
+        self._record_target(atom, target)
         for suffix in ctx.suffixOp():
             target = self._suffix_target(target, suffix)
+            self._record_target(suffix, target)
         return target
+
+    def _record_target(self, ctx: Any, target: "Target") -> None:
+        """Expose a suffix's resolved type and symbol to the TAC generator.
+
+        ``self.visit()`` never runs on ``primaryAtom``/``suffixOp`` nodes (they
+        are walked by hand through ``_atom_target``/``_suffix_target``), so
+        without this they would be invisible to ``type_objects``/``bindings``
+        and the generator would have to re-resolve classes, attributes and
+        methods on its own — the kind of duplication that caused the ``for``
+        bug in the TAC generator.
+        """
+        self.type_objects[id(ctx)] = target.type
+        if target.symbol is not None:
+            self.bindings[id(ctx)] = target.symbol
 
     def _atom_target(self, ctx: Any) -> Target:
         line, column = position(ctx)
@@ -941,7 +960,10 @@ class Checker(CompiscriptVisitor):
                 column,
                 count_code="SEM504",
             )
-        return Target(class_symbol.type, "value", line=line, column=column)
+        # The generator needs the ClassSymbol itself (object size, vtable
+        # label), not just the ClassType, to emit ``alloc``/``store`` for the
+        # descriptor and to call the right constructor.
+        return Target(class_symbol.type, "value", symbol=class_symbol, line=line, column=column)
 
     def _suffix_target(self, target: Target, ctx: Any) -> Target:
         line, column = position(ctx)
@@ -981,6 +1003,11 @@ class Checker(CompiscriptVisitor):
                     anchor_line,
                     anchor_column,
                 )
+            # Record what is actually being called (a plain function or a
+            # method needing vtable dispatch) before the call's own Target
+            # (its return type) replaces this one and loses the reference.
+            if target.symbol is not None:
+                self.bindings[id(ctx)] = target.symbol
             return Target(callee.return_type, "value", line=line, column=column)
 
         if isinstance(ctx, CompiscriptParser.IndexExprContext):
