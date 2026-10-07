@@ -53,6 +53,41 @@ td { padding: 1px 10px 1px 0; vertical-align: top; }
 <body><h1>Tabla de símbolos · ${escapeHtml(fileName)}</h1>${body}</body></html>`;
 }
 
+interface TacPayload {
+  text?: string;
+}
+
+/** Render the TAC exported by `--tac json`.
+ *
+ * Reuses the text Python already rendered (`TacProgram.render()`) instead of
+ * re-implementing `Quad.render()`'s op-to-text rules a second time in
+ * TypeScript, which is exactly the kind of duplication that caused a bug
+ * between the checker and the generator during the TAC work itself.
+ */
+export function renderTac(payload: unknown, fileName: string): string {
+  const tac = payload as TacPayload | undefined;
+  const blocks = (tac?.text ?? "").split("\n\n").filter((block) => block.trim().length > 0);
+  const body = blocks.length
+    ? blocks.map((block) => renderTacBlock(block)).join("")
+    : "<p>Sin código intermedio.</p>";
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>Código intermedio</title>
+<style>
+body { font: 13px/1.5 ui-monospace, Consolas, monospace; padding: 16px; }
+h1 { font-size: 15px; margin: 0 0 12px; }
+details > summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+pre { margin: 4px 0 12px 18px; white-space: pre; }
+</style></head>
+<body><h1>Código intermedio · ${escapeHtml(fileName)}</h1>${body}</body></html>`;
+}
+
+function renderTacBlock(block: string): string {
+  const lines = block.split("\n");
+  const summary = lines[0] ?? "";
+  const rest = lines.slice(1).join("\n");
+  return `<details open><summary>${escapeHtml(summary)}</summary><pre>${escapeHtml(rest)}</pre></details>`;
+}
+
 function renderScope(scope: ScopePayload): string {
   const rows = scope.symbols
     .map(

@@ -12,7 +12,7 @@ import {
   summarize,
   toZeroBased,
 } from "../protocol";
-import { escapeHtml, renderSymbols } from "../render";
+import { escapeHtml, renderSymbols, renderTac } from "../render";
 
 describe("resolveSetting", () => {
   it("expands the workspace placeholder", () => {
@@ -60,9 +60,17 @@ describe("buildArgs", () => {
       sourcePath: "a.cps",
       tree: "none",
       symbols: "none",
+      tac: "none",
     });
     assert.equal(args.includes("--tree"), false);
     assert.equal(args.includes("--symbols"), false);
+    assert.equal(args.includes("--tac"), false);
+  });
+
+  it("adds the tac flag", () => {
+    const args = buildArgs({ compilerPath: "Driver.py", sourcePath: "a.cps", tac: "json" });
+    assert.ok(args.includes("--tac"));
+    assert.ok(args.includes("json"));
   });
 });
 
@@ -194,5 +202,27 @@ describe("renderSymbols", () => {
 
   it("escapes every unsafe character", () => {
     assert.equal(escapeHtml('<a href="x">&</a>'), "&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;");
+  });
+});
+
+describe("renderTac", () => {
+  const tac = { text: "main:\n    a = 1\n    print a\n\nf_f:\n    return 1" };
+
+  it("renders one block per function, named after its first line", () => {
+    const html = renderTac(tac, "a.cps");
+    assert.match(html, /<!DOCTYPE html>/);
+    assert.match(html, /<summary>main:<\/summary>/);
+    assert.match(html, /<summary>f_f:<\/summary>/);
+    assert.match(html, /a = 1/);
+  });
+
+  it("shows a placeholder when there is no code", () => {
+    assert.match(renderTac({ text: "" }, "a.cps"), /Sin código intermedio/);
+  });
+
+  it("escapes the file name and the TAC text", () => {
+    const html = renderTac({ text: 'main:\n    print "<script>"' }, "<a>.cps");
+    assert.match(html, /&lt;a&gt;\.cps/);
+    assert.match(html, /&lt;script&gt;/);
   });
 });

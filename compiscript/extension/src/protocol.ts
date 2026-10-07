@@ -25,6 +25,7 @@ export interface CompiscriptPayload {
   diagnostics: CompiscriptDiagnostic[];
   tree?: unknown;
   symbols?: unknown;
+  tac?: unknown;
 }
 
 /** Exit codes of the CLI. Anything else means the process itself failed. */
@@ -38,6 +39,7 @@ export interface DriverOptions {
   format?: "text" | "json";
   tree?: "none" | "lisp" | "json" | "html" | "svg";
   symbols?: "none" | "text" | "json";
+  tac?: "none" | "text" | "json";
 }
 
 /**
@@ -59,6 +61,9 @@ export function buildArgs(options: DriverOptions): string[] {
   }
   if (options.symbols && options.symbols !== "none") {
     args.push("--symbols", options.symbols);
+  }
+  if (options.tac && options.tac !== "none") {
+    args.push("--tac", options.tac);
   }
   return args;
 }

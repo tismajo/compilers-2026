@@ -56,6 +56,10 @@
       {
         "command": "compiscript.showSymbols",
         "title": "Compiscript: Mostrar tabla de símbolos"
+      },
+      {
+        "command": "compiscript.showTac",
+        "title": "Compiscript: Generar código intermedio"
       }
     ],
     "menus": {
@@ -102,7 +106,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -p . --watch",
     "lint": "tsc -p . --noEmit",
-    "test": "node --test out/test",
+    "test": "node --test out/test/*.test.js",
     "pretest": "npm run compile",
     "package": "vsce package --no-dependencies"
   },
