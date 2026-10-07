@@ -45,6 +45,20 @@ class Quad:
             return f"param {a}"
         if op == "call":
             return f"{r} = call {a}, {b}" if r else f"call {a}, {b}"
+        if op == "calli":
+            return f"{r} = calli {a}, {b}" if r else f"calli {a}, {b}"
+        if op == "alloc":
+            return f"{r} = alloc {a}"
+        if op == "load":
+            # Raw byte-offset memory access (array/object header, element,
+            # attribute, vtable slot) — deliberately not ``a[b]``, which would
+            # read as source-level indexing and is a different thing (that is
+            # ``offset = idx*stride + header`` computed first, then loaded).
+            return f"{r} = *({a} + {b})"
+        if op == "store":
+            return f"*({a} + {b}) = {r}"
+        if op == "halt":
+            return "halt"
         if op == "return":
             return f"return {a}" if a is not None else "return"
         if op == "print":
@@ -97,12 +111,32 @@ class FunctionCode:
 
 
 @dataclass
-class TacProgram:
-    functions: list[FunctionCode] = field(default_factory=list)
+class VTableData:
+    """Static dispatch table of one class: ``slots[i]`` is the label called
+    for the method at index ``i``, overridden in place by subclasses so every
+    class in the hierarchy agrees on the index of a given method name."""
+
+    class_name: str
+    label: str
+    slots: list[str] = field(default_factory=list)
 
     def render(self) -> str:
+        return f"vtable {self.label}: [{', '.join(self.slots)}]"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"className": self.class_name, "label": self.label, "slots": list(self.slots)}
+
+
+@dataclass
+class TacProgram:
+    functions: list[FunctionCode] = field(default_factory=list)
+    vtables: list[VTableData] = field(default_factory=list)
+
+    def render(self) -> str:
+        header = "\n".join(item.render() for item in self.vtables)
         blocks = ["\n".join(item.lines()) for item in self.functions]
-        return "\n\n".join(blocks)
+        body = "\n\n".join(blocks)
+        return f"{header}\n\n{body}" if header else body
 
     def quads(self) -> list[Quad]:
         return [quad for item in self.functions for quad in item.quads]
@@ -113,5 +147,6 @@ class TacProgram:
     def as_dict(self) -> dict[str, Any]:
         return {
             "functions": [item.as_dict() for item in self.functions],
+            "vtables": [item.as_dict() for item in self.vtables],
             "text": self.render(),
         }
