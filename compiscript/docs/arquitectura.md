@@ -74,6 +74,10 @@ visualización lo reciben ya construido; nada vuelve a leer el archivo fuente.
 | Pasada 1 | `program/semantic/collector.py` | Clases, herencia y firmas globales |
 | Pasada 2 | `program/semantic/checker.py` | Ámbitos, resolución, tipos y reglas semánticas |
 | Orquestador semántico | `program/semantic/analyzer.py` | Ejecuta ambas pasadas y devuelve el resultado |
+| Direcciones y frames | `program/tac/layout.py` | Offsets, registros de activación, layout de objetos y vtables |
+| Temporales | `program/tac/temps.py` | Asignación y reciclaje de variables temporales |
+| Generador de TAC | `program/tac/generator.py` | Traduce el parse tree ya validado a código de tres direcciones |
+| Instrucciones | `program/tac/instructions.py` | `Quad`, `FunctionCode`, `TacProgram`, `VTableData` |
 | Visualización | `program/treeview.py` | Árbol enriquecido y renderizadores HTML y SVG |
 | IDE | `extension/` | Extensión de VS Code en TypeScript |
 
@@ -111,9 +115,11 @@ propio. La decisión se tomó al inicio del proyecto y condiciona el diseño:
   gramática (`AssignExpr`, `IdentifierExpr`, `CallExpr`, `IndexExpr`,
   `PropertyAccessExpr`, `NewExpr`, `ThisExpr`) en lugar de nodos propios.
 
-Para las fases futuras de TAC y MIPS, cada símbolo reserva cuatro campos vacíos
-—`offset`, `size`, `storage`, `label`— y el `Checker` ya guarda el tipo de cada
-expresión en un diccionario indexado por nodo.
+Cada símbolo reserva cuatro campos —`offset`, `size`, `storage`, `label`— que
+`program/tac/layout.py` llena al generar código intermedio (para la fase de
+MIPS siguen quedando ahí, listos para usarse igual). El `Checker` guarda el
+tipo de cada expresión, incluidos los nodos `suffixOp`, en un diccionario
+indexado por nodo que el generador de TAC reutiliza directamente.
 
 La forma serializada del árbol está documentada en
 [visualización](visualizacion.md).
@@ -191,9 +197,23 @@ panel *Problems*, restando 1 a la línea y a la columna porque la API de VS Code
 es base 0. Docker no interviene. El detalle está en
 [`extension/README.md`](../extension/README.md).
 
+## Generación de código intermedio (TAC)
+
+`program/tac/` (`layout.py`, `temps.py`, `instructions.py`, `generator.py`)
+genera código de tres direcciones a partir del mismo parse tree, reutilizando
+los símbolos y tipos que el `Checker` ya resolvió (`bindings`, `declared`,
+`type_objects` — estos dos últimos también cubren los nodos `suffixOp`, no
+solo los identificadores, para que el generador nunca tenga que re-resolver
+una clase, un atributo o un método por su cuenta). `Layout` llena los campos
+que `Symbol` tenía reservados (`offset`, `size`, `storage`, `label`) y
+construye un registro de activación por función, incluida la tabla de
+métodos virtuales de cada clase. El diseño completo —instrucciones, modelo de
+memoria de arreglos y objetos, vtable, manejo de `try`/`catch` y el límite
+deliberado de las excepciones y los closures— está en
+[lenguaje intermedio](lenguaje-intermedio.md).
+
 ## Qué no incluye esta entrega
 
-Generación de código intermedio (TAC) y de código MIPS. Existen
-`README_TAC_GENERATION.md` y `README_CODE_GENERATION.md` en el repositorio,
-pero corresponden a fases posteriores del curso. La arquitectura las anticipa
-con los campos reservados de los símbolos y con el registro de tipos por nodo.
+Generación de código MIPS. `README_CODE_GENERATION.md` describe esa fase
+posterior del curso; la arquitectura la anticipa con las direcciones y los
+registros de activación que `program/tac/layout.py` ya calcula.

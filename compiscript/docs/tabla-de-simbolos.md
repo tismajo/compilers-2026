@@ -54,8 +54,13 @@ propietario, mutabilidad y si están inicializados. Categorías: `variable`,
   atributos, los métodos y el constructor, y resuelve miembros heredados con
   `lookup_attribute`, `lookup_method` y `lookup_constructor`.
 
-Cada símbolo reserva cuatro campos vacíos para las fases futuras de TAC y MIPS:
-`offset`, `size`, `storage` y `label`. Ninguna fase actual los escribe.
+Cada símbolo reserva cuatro campos —`offset`, `size`, `storage` y `label`—
+que la fase de análisis semántico deja vacíos. Al generar código intermedio,
+`program/tac/layout.py` los llena (direcciones, tamaños en bytes, dónde vive
+cada símbolo y la etiqueta de su código) y además construye, por función, un
+registro de actividad (`ActivationRecord`) con sus parámetros, locales y pico
+de temporales, y por clase, su tabla de métodos virtuales. El diseño completo
+de esa fase está en [lenguaje intermedio](lenguaje-intermedio.md).
 
 ## Ámbitos
 

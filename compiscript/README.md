@@ -295,6 +295,7 @@ program.cps
 | [`docs/visualizacion.md`](docs/visualizacion.md) | Formato del árbol y renderizadores HTML y SVG |
 | [`docs/pruebas.md`](docs/pruebas.md) | Organización de la suite, fixtures, cobertura e integración continua |
 | [`docs/decisiones.md`](docs/decisiones.md) | Contradicciones del enunciado y qué se decidió en cada caso |
+| [`docs/lenguaje-intermedio.md`](docs/lenguaje-intermedio.md) | Diseño del código de tres direcciones: instrucciones, memoria, vtable, closures |
 | [`extension/README.md`](extension/README.md) | Instalación, configuración y comandos del IDE |
 
 ## Frontend sintáctico
@@ -352,11 +353,25 @@ python3 program/Driver.py program/program.cps --symbols text
 python3 program/Driver.py program/program.cps --format json --symbols json
 ```
 
+## Generación de código intermedio (TAC)
+
+Con un programa sin errores, el compilador también genera código de tres
+direcciones:
+
+```bash
+python3 program/Driver.py program/program.cps --tac text
+python3 program/Driver.py program/program.cps --format json --tac json --symbols json
+```
+
+El diseño del lenguaje intermedio —instrucciones, layout de arreglos y
+objetos, despacho de métodos por vtable, `try`/`catch` y closures— está
+documentado en [`docs/lenguaje-intermedio.md`](docs/lenguaje-intermedio.md).
+
 ## IDE: extensión de VS Code
 
 La extensión vive en [`extension/`](extension/) y convierte a VS Code en el IDE
 del lenguaje: resaltado de sintaxis, diagnósticos en el panel *Problems*, árbol
-sintáctico interactivo y tabla de símbolos.
+sintáctico interactivo, tabla de símbolos y código intermedio generado.
 
 ```bash
 cd extension

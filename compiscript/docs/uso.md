@@ -95,6 +95,7 @@ en la salida de error:
 | `--tree-depth` | entero | Poda el árbol por niveles |
 | `--tree-out` | ruta | Escribe el árbol en un archivo en vez de imprimirlo |
 | `--symbols` | `none`, `text`, `json` | Incluye la tabla de símbolos |
+| `--tac` | `none`, `text`, `json` | Genera el código intermedio (TAC); solo si el programa no tiene errores |
 | `--no-semantic` | — | Se detiene en la fase sintáctica |
 
 ### Códigos de salida
@@ -140,6 +141,17 @@ Tabla de símbolos legible o en JSON:
 python3 program/Driver.py program/program.cps --symbols text
 python3 program/Driver.py program/program.cps --format json --symbols json
 ```
+
+Código de tres direcciones, legible o en JSON (con `--symbols` también se ven
+las direcciones y los registros de activación):
+
+```bash
+python3 program/Driver.py program/program.cps --tac text
+python3 program/Driver.py program/program.cps --format json --tac json --symbols json
+```
+
+El diseño del lenguaje intermedio está en
+[lenguaje intermedio](lenguaje-intermedio.md).
 
 ## Visualización del árbol
 

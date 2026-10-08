@@ -22,10 +22,21 @@ fixtures, cómo se ejecuta y cómo se mide la cobertura.
         test_classes.py       miembros, constructores, this y herencia
         test_arrays.py        literales, índices y límites estáticos
         test_programs.py      código muerto y programas completos
+      codegen/                 batería de generación de código intermedio (TAC)
+        test_expressions.py   expresiones, conversiones y reciclaje de temporales
+        test_control_flow.py  if/else, while, do-while, for
+        test_functions.py     llamadas, frames, direcciones y casos fallidos
+        test_arrays.py        literales, lectura/escritura y chequeo de límites
+        test_foreach_switch.py foreach (lowering a índice) y switch (fallthrough)
+        test_try_catch.py     manejo de fallos en tiempo de ejecución
+        test_classes.py       layout de objetos, vtable y despacho dinámico
+        test_closures.py      funciones anidadas que capturan variables
+        test_integration.py   program.cps completo, sin ningún `# TODO`
 
 El paquete se llama `rules/` y no `semantic/` a propósito: `program/semantic`
 ya ocupa ese nombre y `unittest discover` agrega `tests/` al `sys.path`, así
-que dos paquetes homónimos se taparían entre sí.
+que dos paquetes homónimos se taparían entre sí. Por la misma razón el
+paquete de TAC se llama `codegen/` y no `tac/`, que ya ocupa `program/tac`.
 
 ## Convención de fixtures
 
@@ -67,9 +78,10 @@ severidades y posiciones, para que reescribir un mensaje no rompa la suite.
 
     ./.venv/Scripts/python.exe -m unittest discover -s tests -v
 
-Estado actual: **154 pruebas, sin fallos y sin omisiones**. `test_grammar.py`
-se omite si falta Java y la suite semántica se omite si falta el runtime de
-ANTLR; en un entorno completo no debe haber ninguna omisión.
+Estado actual: **251 pruebas**. `test_grammar.py` se omite si falta Java (4
+pruebas) y la suite semántica y de TAC se omiten si falta el runtime de
+ANTLR; en un entorno completo con Java instalado no debe haber ninguna
+omisión.
 
 ## Cobertura
 
