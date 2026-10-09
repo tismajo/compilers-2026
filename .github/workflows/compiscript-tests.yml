@@ -48,7 +48,11 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Analizar el programa oficial
-        run: python program/Driver.py program/program.cps --format json --symbols json
+        run: python program/Driver.py program/program.cps --format json --symbols json --tac json
+
+      - name: El programa oficial no debe dejar codigo intermedio sin traducir
+        run: |
+          ! python program/Driver.py program/program.cps --tac text | grep -q "TODO"
 
       - name: Reporte de cobertura
         run: python tests/coverage_report.py
