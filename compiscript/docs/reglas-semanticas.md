@@ -60,7 +60,7 @@ Documentados en [`tabla-de-simbolos.md`](tabla-de-simbolos.md): `SEM201` a
 | `SEM502` | Miembro inexistente en la clase o en sus ancestros |
 | `SEM503` | `this` fuera de un método o de un constructor |
 | `SEM504` | Cantidad o tipo de argumentos incorrecto en el constructor |
-| `SEM505` | Sobrescritura que no respeta la firma heredada |
+| `SEM505` | Sobrescritura de un método que no respeta la firma heredada (el constructor queda exento) |
 | `SEM506` | Acceso con `.` sobre un valor que no es un objeto |
 
 ### `SEM6xx` — Arreglos

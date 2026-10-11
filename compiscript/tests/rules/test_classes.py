@@ -121,6 +121,30 @@ class InheritanceTests(SemanticTestCase):
         )
         self.assert_diagnostic(source, "SEM505", line=2)
 
+    def test_subclass_constructor_may_take_other_arguments(self) -> None:
+        source = ANIMAL + (
+            "class Dog : Animal {\n"
+            "  let breed: string;\n"
+            "  function constructor(name: string, breed: string) {\n"
+            "    this.name = name;\n"
+            "    this.breed = breed;\n"
+            "  }\n"
+            "}\n"
+            'let d: Dog = new Dog("Rex", "Labrador");\n'
+        )
+        self.assert_ok(source)
+
+    def test_subclass_constructor_arity_is_its_own(self) -> None:
+        # Once Dog declares its own constructor, the inherited one no longer
+        # applies: Animal's single argument is now too few.
+        source = ANIMAL + (
+            "class Dog : Animal {\n"
+            "  function constructor(name: string, breed: string) { this.name = name; }\n"
+            "}\n"
+            'let d: Dog = new Dog("Rex");\n'
+        )
+        self.assert_diagnostic(source, "SEM504", line=9)
+
     def test_override_with_the_same_signature_is_accepted(self) -> None:
         source = (
             "class Base { function saludar(): string { return \"hola\"; } }\n"

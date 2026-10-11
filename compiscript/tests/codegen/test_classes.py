@@ -82,6 +82,28 @@ class ObjectTests(TacTestCase):
         code = self.code(ANIMAL_DOG + "let d: Dog = new Dog(\"Rex\");\n")
         self.assertIn("call Animal_constructor, 2", code)
 
+    def test_subclass_constructor_with_its_own_arguments_is_called(self) -> None:
+        source = (
+            "class Animal {\n"
+            "  let name: string;\n"
+            "  function constructor(name: string) { this.name = name; }\n"
+            "}\n"
+            "class Dog : Animal {\n"
+            "  let breed: string;\n"
+            "  function constructor(name: string, breed: string) {\n"
+            "    this.name = name;\n"
+            "    this.breed = breed;\n"
+            "  }\n"
+            "}\n"
+            'let d: Dog = new Dog("Rex", "Labrador");\n'
+        )
+        code = self.code(source)
+        self.assertIn("call Dog_constructor, 3", code)
+        self.assertEqual(
+            ["*(this + 4) = name", "*(this + 8) = breed"],
+            self.code(source, "Dog_constructor"),
+        )
+
     def test_attribute_read_and_write_use_the_computed_offset(self) -> None:
         code = self.code(ANIMAL_DOG, "Animal_speak")
         self.assertEqual("t0 = *(this + 4)", code[0])

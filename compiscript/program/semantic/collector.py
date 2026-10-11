@@ -199,6 +199,10 @@ class Collector:
         """An override must keep the signature its parent declared."""
         for symbol in self.table.classes.values():
             for name, method in symbol.methods.items():
+                # A constructor is not an override: it is called statically on
+                # the class being built, so a subclass may take other arguments.
+                if name == CONSTRUCTOR_NAME:
+                    continue
                 inherited = None
                 for ancestor in symbol.ancestors():
                     if name in ancestor.methods:

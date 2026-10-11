@@ -160,8 +160,8 @@ exportación a JSON— está en [tabla de símbolos](tabla-de-simbolos.md).
   constructor explícito hereda el de su padre, y si no hay ninguno acepta cero
   argumentos.
 - **Herencia.** Se detectan padres inexistentes y ciclos. Una subclase es
-  asignable a su clase padre. Una sobrescritura debe respetar la firma
-  heredada.
+  asignable a su clase padre. Una sobrescritura de método debe respetar la
+  firma heredada; el constructor no, porque nunca se despacha por vtable.
 - **Arreglos.** El tipo de un literal se infiere como el tipo común de sus
   elementos; `[]` se adapta al tipo del destino. Los arreglos multidimensionales
   son arreglos de arreglos. El índice debe ser `integer` y solo se verifica

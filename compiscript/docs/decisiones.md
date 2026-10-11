@@ -137,6 +137,10 @@ Casos que el enunciado no menciona y que hubo que resolver:
    solo impide la reasignación (`SEM108`).
 10. **Una clase sin constructor propio hereda el de su padre**; si no hay
     ninguno en la cadena, acepta cero argumentos.
+11. **El constructor no es una sobrescritura.** Una subclase puede declarar un
+    constructor con otros parámetros que el de su padre (como en TypeScript),
+    porque se llama de forma estática sobre la clase que se construye y nunca
+    pasa por la vtable. `SEM505` aplica solo a los métodos.
 
 ## Decisiones de proyecto
 
