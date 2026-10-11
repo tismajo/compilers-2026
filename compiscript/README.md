@@ -1,6 +1,7 @@
 # Video
 
 [Link al video](https://youtu.be/ffRXo1Cn4B0)
+[Link al video (Generación de código intermedio)](https://youtu.be/O5AjCC_Bq2M)
 
 # 🧪 Compiscript
 
