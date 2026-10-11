@@ -34,6 +34,26 @@ class TryCatchTests(TacTestCase):
         self.assertIn("halt", code)
         self.assertNotIn("err", " ".join(code))
 
+    def test_negative_index_inside_try_jumps_to_its_catch(self) -> None:
+        source = (
+            "let arr: integer[] = [1, 2, 3];\n"
+            "let i: integer = 0 - 1;\n"
+            "try {\n"
+            "  print(arr[i]);\n"
+            "} catch (err) {\n"
+            "  print(err);\n"
+            "}\n"
+        )
+        code = self.code(source)
+        lower = code.index("t0 = i < 0")
+        fail_label = code[lower + 1].split()[-1]
+        fail_index = code.index(f"{fail_label}:")
+        self.assertEqual(
+            ["err = \"Índice fuera de rango\"", "goto L0"],
+            code[fail_index + 1 : fail_index + 3],
+        )
+        self.assertNotIn("halt", code)
+
     def test_nested_try_catch_targets_its_own_handler(self) -> None:
         source = (
             "let arr: integer[] = [1, 2, 3];\n"

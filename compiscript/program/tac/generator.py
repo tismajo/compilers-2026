@@ -826,6 +826,13 @@ class TacGenerator(CompiscriptVisitor):
         return Value(result, element_type)
 
     def _bounds_checked_offset(self, base: Value, index: Value, element_type: Type) -> Value:
+        # Both ends of the range: a computed index can be negative. A
+        # non-negative literal can never fail the lower check, so it is skipped.
+        if not index.place.isdigit():
+            negative = self.new_temp()
+            self.emit("<", index.place, "0", negative)
+            self.fail(negative, "Índice fuera de rango")
+            self.release(Value(negative, ERROR))
         length = self.new_temp()
         self.emit("load", base.place, "0", length)
         cmp = self.new_temp()

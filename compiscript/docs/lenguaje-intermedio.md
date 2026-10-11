@@ -201,8 +201,14 @@ ejecución que genera el compilador (ver sección 7, supuesto 7). El patrón es
 siempre el mismo, para lectura o escritura:
 
 ```
+t_neg = idx < 0                  ← cota inferior (se omite si idx es un literal ≥ 0)
+if t_neg goto L_fail0
+goto L_ok0
+L_fail0:
+    <mismo salto de fallo que abajo>
+L_ok0:
 t_len = *(base + 0)              ← longitud, guardada en el encabezado
-t_cmp = idx >= t_len
+t_cmp = idx >= t_len             ← cota superior
 if t_cmp goto L_fail
 goto L_ok
 L_fail:
@@ -560,7 +566,10 @@ justificar:
 
 1. **Chequeo de límites en tiempo de ejecución.** Todo acceso a arreglo
    (lectura o escritura, con índice literal o calculado) genera la secuencia
-   de la sección 4.2, no solo una advertencia estática. La advertencia
+   de la sección 4.2, no solo una advertencia estática. Se validan las dos
+   cotas: `idx < 0` e `idx >= longitud`, porque un índice calculado puede ser
+   negativo; la cota inferior se omite solo cuando el índice es un literal no
+   negativo, que nunca puede fallarla. La advertencia
    estática (`SEM604`) sigue existiendo para índices literales fuera de rango
    detectables en compilación, pero no sustituye al chequeo en tiempo de
    ejecución.

@@ -63,6 +63,21 @@ class AccessTests(TacTestCase):
         self.assertIn("t1 = 0 >= t0", code)
         self.assertEqual("*(arr + t0) = 99", code[-1])
 
+    def test_computed_index_is_also_checked_against_zero(self) -> None:
+        code = self.code(
+            "let arr: integer[] = [10, 20, 30];\nlet i: integer = 0 - 1;\nprint(arr[i]);",
+        )
+        # The lower check runs before the length is even loaded, and fails
+        # the same way the upper one does.
+        lower = code.index("t0 = i < 0")
+        self.assertEqual("if t0 goto L0", code[lower + 1])
+        self.assertEqual(["L0:", "halt"], code[lower + 3 : lower + 5])
+        self.assertIn("t1 = i >= t0", code)
+
+    def test_literal_index_skips_the_lower_check(self) -> None:
+        code = self.code("let arr: integer[] = [10, 20, 30];\nprint(arr[2]);")
+        self.assertFalse(any("< 0" in line for line in code))
+
     def test_mixed_arithmetic_still_recycles_temporaries(self) -> None:
         # a[0] = a[1] + a[2] * 2 — every sub-expression's bounds check and
         # load must release its scratch temporaries once consumed, the same
