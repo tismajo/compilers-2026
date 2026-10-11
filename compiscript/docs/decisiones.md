@@ -146,7 +146,9 @@ Casos que el enunciado no menciona y que hubo que resolver:
 
 - **Se recorre el parse tree directamente, sin AST propio.** Ver
   [arquitectura](arquitectura.md#estructura-del-parse-tree).
-- **La entrega cubre solo el análisis semántico.** No hay TAC ni MIPS.
+- **La entrega cubre el análisis semántico y la generación de código
+  intermedio (TAC).** MIPS queda para la fase siguiente; el TAC se documenta en
+  [lenguaje intermedio](lenguaje-intermedio.md).
 - **El equipo es de cuatro integrantes**, aunque el enunciado hable de grupos de
   tres. Cada quien conserva commits identificables.
 - **El compilador es Python y el IDE es una extensión de VS Code en
