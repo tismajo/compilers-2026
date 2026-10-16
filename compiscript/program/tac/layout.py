@@ -52,6 +52,13 @@ class Slot:
     name: str
     offset: int
     size: int
+    # The symbol this slot belongs to, when there is one (``this`` has none —
+    # see ``_open_record``). ``name`` is the *source* name, which two sibling
+    # blocks may legitimately share (shadowing); kept out of ``as_dict`` so
+    # the ``--symbols json`` shape this already shipped with does not change.
+    # The MIPS phase needs it because a symbol's own ``.label`` (set by
+    # ``TacGenerator.name_of``) is the only name guaranteed not to collide.
+    symbol: Optional[Symbol] = None
 
     def as_dict(self) -> dict[str, Any]:
         return {"name": self.name, "offset": self.offset, "size": self.size}
@@ -219,7 +226,7 @@ class Layout:
             return
         symbol.storage = "stack"
         symbol.offset = -(record.locals_size + size)
-        record.locals.append(Slot(symbol.name, symbol.offset, size))
+        record.locals.append(Slot(symbol.name, symbol.offset, size, symbol))
 
     def _open_record(self, function: FunctionSymbol, owners: list[str]) -> ActivationRecord:
         is_method = isinstance(function, MethodSymbol)
@@ -239,7 +246,7 @@ class Layout:
             parameter.storage = "stack"
             parameter.size = size
             parameter.offset = offset
-            record.parameters.append(Slot(parameter.name, offset, size))
+            record.parameters.append(Slot(parameter.name, offset, size, parameter))
             offset += size
         self.records[id(function)] = record
         return record
