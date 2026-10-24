@@ -20,6 +20,14 @@ class Quad:
     arg1: Optional[str] = None
     arg2: Optional[str] = None
     result: Optional[str] = None
+    # Compiscript type name ("integer", "float", "string", "boolean", a class
+    # name, or an array type's own ``str()``) of this instruction's value —
+    # its result when it produces one, otherwise its operand (``print``,
+    # ``param``, ``return``). The TAC phase never needed this (it only moves
+    # symbolic names around); the MIPS phase does, to pick integer vs. float
+    # instructions and the right ``print`` syscall, without re-inferring
+    # types that the generator already knew at the moment of emission.
+    type: Optional[str] = None
 
     def render(self) -> str:
         op, a, b, r = self.op, self.arg1, self.arg2, self.result
@@ -74,7 +82,13 @@ class Quad:
         return f"{op} {a} {b} {r}"  # pragma: no cover - unknown op
 
     def as_dict(self) -> dict[str, Any]:
-        return {"op": self.op, "arg1": self.arg1, "arg2": self.arg2, "result": self.result}
+        return {
+            "op": self.op,
+            "arg1": self.arg1,
+            "arg2": self.arg2,
+            "result": self.result,
+            "type": self.type,
+        }
 
 
 @dataclass
@@ -84,12 +98,20 @@ class FunctionCode:
     record: Any = None
     quads: list[Quad] = field(default_factory=list)
 
-    def emit(self, op: str, arg1: Any = None, arg2: Any = None, result: Any = None) -> Quad:
+    def emit(
+        self,
+        op: str,
+        arg1: Any = None,
+        arg2: Any = None,
+        result: Any = None,
+        value_type: Optional[str] = None,
+    ) -> Quad:
         quad = Quad(
             op,
             None if arg1 is None else str(arg1),
             None if arg2 is None else str(arg2),
             None if result is None else str(result),
+            value_type,
         )
         self.quads.append(quad)
         return quad

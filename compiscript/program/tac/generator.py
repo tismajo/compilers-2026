@@ -146,8 +146,17 @@ class TacGenerator(CompiscriptVisitor):
             self.state = saved
 
     # -- small helpers --------------------------------------------------
-    def emit(self, op: str, arg1: Any = None, arg2: Any = None, result: Any = None) -> Quad:
-        return self.state.code.emit(op, arg1, arg2, result)
+    def emit(
+        self,
+        op: str,
+        arg1: Any = None,
+        arg2: Any = None,
+        result: Any = None,
+        value_type: Optional[Type] = None,
+    ) -> Quad:
+        return self.state.code.emit(
+            op, arg1, arg2, result, None if value_type is None else str(value_type)
+        )
 
     def new_label(self) -> str:
         label = f"L{self._labels}"
@@ -175,6 +184,14 @@ class TacGenerator(CompiscriptVisitor):
             counter += 1
         taken.add(name)
         self._names[key] = name
+        # ``Symbol.label`` was already reserved for exactly this (the TAC
+        # phase sets it for functions/classes); the MIPS phase needs it for
+        # every other symbol too, because this is the *only* record of the
+        # actual name a shadowed/renamed variable ended up with — its own
+        # ``.name`` stays the source-level one, which two sibling blocks can
+        # legitimately share (shadowing is allowed), so it is not safe to use
+        # as a ``.data`` label or frame-home key on its own.
+        symbol.label = name
         return name
 
     def expr(self, ctx: Any) -> Value:
@@ -190,7 +207,7 @@ class TacGenerator(CompiscriptVisitor):
     def _convert(self, value: Value, op: str, new_type: Type) -> Value:
         self.release(value)
         result = self.new_temp()
-        self.emit(op, value.place, result=result)
+        self.emit(op, value.place, result=result, value_type=new_type)
         return Value(result, new_type)
 
     def todo(self, what: str, ctx: Any, as_value: bool = True) -> Value:
@@ -203,8 +220,9 @@ class TacGenerator(CompiscriptVisitor):
             self.emit("todo", description)
             return Value("?", ERROR)
         result = self.new_temp()
-        self.emit("todo", description, result=result)
-        return Value(result, self.type_objects.get(id(ctx), ERROR))
+        result_type = self.type_objects.get(id(ctx), ERROR)
+        self.emit("todo", description, result=result, value_type=result_type)
+        return Value(result, result_type)
 
     def fail(self, condition_place: str, message: str) -> None:
         """Runtime fault: jump to the active ``catch``, or ``halt``.
@@ -220,7 +238,7 @@ class TacGenerator(CompiscriptVisitor):
         self.emit("label", fail_label)
         if self.state.handlers:
             handler_label, err_name = self.state.handlers[-1]
-            self.emit("assign", f'"{message}"', result=err_name)
+            self.emit("assign", f'"{message}"', result=err_name, value_type=STRING)
             self.emit("goto", handler_label)
         else:
             self.emit("halt")
@@ -246,10 +264,15 @@ class TacGenerator(CompiscriptVisitor):
         name = self.name_of(symbol)
         if value_ctx is None:
             # Uninitialized variables start with the zero value of their type.
-            self.emit("assign", DEFAULT_VALUES.get(symbol.type, "null"), result=name)
+            self.emit(
+                "assign",
+                DEFAULT_VALUES.get(symbol.type, "null"),
+                result=name,
+                value_type=symbol.type,
+            )
             return
         value = self.coerce(self.expr(value_ctx), symbol.type)
-        self.emit("assign", value.place, result=name)
+        self.emit("assign", value.place, result=name, value_type=symbol.type)
         self.release(value)
 
     def visitFunctionDeclaration(self, ctx: CompiscriptParser.FunctionDeclarationContext):
@@ -297,7 +320,7 @@ class TacGenerator(CompiscriptVisitor):
 
     def visitPrintStatement(self, ctx: CompiscriptParser.PrintStatementContext):
         value = self.expr(ctx.expression())
-        self.emit("print", value.place)
+        self.emit("print", value.place, value_type=value.type)
         self.release(value)
 
     def visitAssignment(self, ctx: CompiscriptParser.AssignmentContext):
@@ -378,7 +401,7 @@ class TacGenerator(CompiscriptVisitor):
         value = self.expr(value_ctx)
         if function is not None:
             value = self.coerce(value, function.return_type)
-        self.emit("return", value.place)
+        self.emit("return", value.place, value_type=value.type)
         self.release(value)
 
     def visitForeachStatement(self, ctx: CompiscriptParser.ForeachStatementContext):
@@ -391,25 +414,25 @@ class TacGenerator(CompiscriptVisitor):
         array = self.expr(ctx.expression())
         stride = size_of(element_symbol.type)
         idx = self.new_temp()
-        self.emit("assign", "0", result=idx)
+        self.emit("assign", "0", result=idx, value_type=INTEGER)
         length = self.new_temp()
-        self.emit("load", array.place, "0", length)
+        self.emit("load", array.place, "0", length, value_type=INTEGER)
         check, cont, end = self.new_label(), self.new_label(), self.new_label()
         self.emit("label", check)
         cmp = self.new_temp()
-        self.emit(">=", idx, length, cmp)
+        self.emit(">=", idx, length, cmp, value_type=BOOLEAN)
         self.emit("if_true", cmp, end)
         self.release(Value(cmp, ERROR))
         scaled = self.new_temp()
-        self.emit("*", idx, str(stride), scaled)
+        self.emit("*", idx, str(stride), scaled, value_type=INTEGER)
         offset = self.new_temp()
-        self.emit("+", scaled, str(ARRAY_HEADER), offset)
+        self.emit("+", scaled, str(ARRAY_HEADER), offset, value_type=INTEGER)
         self.release(Value(scaled, ERROR))
-        self.emit("load", array.place, offset, element_name)
+        self.emit("load", array.place, offset, element_name, value_type=element_symbol.type)
         self.release(Value(offset, ERROR))
         self._loop_body(ctx.block(), Loop(end, cont))
         self.emit("label", cont)
-        self.emit("+", idx, "1", idx)
+        self.emit("+", idx, "1", idx, value_type=INTEGER)
         self.emit("goto", check)
         self.emit("label", end)
         self.release(Value(idx, ERROR), Value(length, ERROR), array)
@@ -427,7 +450,7 @@ class TacGenerator(CompiscriptVisitor):
         for case, body_label in zip(cases, body_labels):
             case_value = self.expr(case.expression())
             cmp = self.new_temp()
-            self.emit("==", subject.place, case_value.place, cmp)
+            self.emit("==", subject.place, case_value.place, cmp, value_type=BOOLEAN)
             self.emit("if_true", cmp, body_label)
             self.release(case_value, Value(cmp, ERROR))
         self.emit("goto", default_label)
@@ -492,7 +515,7 @@ class TacGenerator(CompiscriptVisitor):
         symbol = self.bindings[id(atom)]
         name = self.name_of(symbol)
         value = self.coerce(self.expr(value_ctx), symbol.type)
-        self.emit("assign", value.place, result=name)
+        self.emit("assign", value.place, result=name, value_type=symbol.type)
         self.release(value)
         return Value(name, symbol.type)
 
@@ -501,7 +524,7 @@ class TacGenerator(CompiscriptVisitor):
         element_type = self.type_objects.get(id(ctx), ERROR)
         offset = self._bounds_checked_offset(base, index_value, element_type)
         value = self.coerce(self.expr(value_ctx), element_type)
-        self.emit("store", base.place, offset.place, result=value.place)
+        self.emit("store", base.place, offset.place, result=value.place, value_type=element_type)
         self.release(base, offset)
         return value
 
@@ -510,7 +533,9 @@ class TacGenerator(CompiscriptVisitor):
         if not isinstance(symbol, AttributeSymbol):
             return self.todo("asignación a miembro", ctx)
         value = self.coerce(self.expr(value_ctx), symbol.type)
-        self.emit("store", obj.place, str(symbol.offset), result=value.place)
+        self.emit(
+            "store", obj.place, str(symbol.offset), result=value.place, value_type=symbol.type
+        )
         self.release(obj)
         return value
 
@@ -529,7 +554,7 @@ class TacGenerator(CompiscriptVisitor):
                 self.emit("goto", end_label)
                 self.emit("label", else_label)
             value = self.coerce(self.expr(branch), result_type)
-            self.emit("assign", value.place, result=result)
+            self.emit("assign", value.place, result=result, value_type=result_type)
             self.release(value)
         self.emit("label", end_label)
         return Value(result, result_type)
@@ -549,11 +574,11 @@ class TacGenerator(CompiscriptVisitor):
         self.release(first)
         result = self.new_temp()
         if result != first.place:
-            self.emit("assign", first.place, result=result)
+            self.emit("assign", first.place, result=result, value_type=BOOLEAN)
         for operand in operands[1:]:
             self.emit(jump, result, end_label)
             value = self.expr(operand)
-            self.emit("assign", value.place, result=result)
+            self.emit("assign", value.place, result=result, value_type=BOOLEAN)
             self.release(value)
         self.emit("label", end_label)
         return Value(result, BOOLEAN)
@@ -609,14 +634,14 @@ class TacGenerator(CompiscriptVisitor):
             right = self._convert(right, "tostr", STRING)
         self.release(left, right)
         result = self.new_temp()
-        self.emit("concat", left.place, right.place, result)
+        self.emit("concat", left.place, right.place, result, value_type=STRING)
         return Value(result, STRING)
 
     def _binary(self, operator: str, left: Value, right: Value, result_type: Type) -> Value:
         # Operands are released first, so the result can reuse one of them.
         self.release(left, right)
         result = self.new_temp()
-        self.emit(operator, left.place, right.place, result)
+        self.emit(operator, left.place, right.place, result, value_type=result_type)
         return Value(result, result_type)
 
     def visitUnaryExpr(self, ctx: CompiscriptParser.UnaryExprContext) -> Value:
@@ -628,9 +653,9 @@ class TacGenerator(CompiscriptVisitor):
         self.release(value)
         result = self.new_temp()
         if operator == "!":
-            self.emit("not", value.place, result=result)
+            self.emit("not", value.place, result=result, value_type=BOOLEAN)
             return Value(result, BOOLEAN)
-        self.emit("minus", value.place, result=result)
+        self.emit("minus", value.place, result=result, value_type=value.type)
         return Value(result, value.type)
 
     def visitPrimaryExpr(self, ctx: CompiscriptParser.PrimaryExprContext) -> Value:
@@ -662,11 +687,22 @@ class TacGenerator(CompiscriptVisitor):
         elements = list(ctx.expression())
         stride = size_of(element_type)
         base = self.new_temp()
-        self.emit("alloc", str(ARRAY_HEADER + stride * len(elements)), result=base)
-        self.emit("store", base, "0", result=str(len(elements)))
+        self.emit(
+            "alloc",
+            str(ARRAY_HEADER + stride * len(elements)),
+            result=base,
+            value_type=array_type,
+        )
+        self.emit("store", base, "0", result=str(len(elements)), value_type=INTEGER)
         for index, element_ctx in enumerate(elements):
             value = self.coerce(self.expr(element_ctx), element_type)
-            self.emit("store", base, str(ARRAY_HEADER + stride * index), result=value.place)
+            self.emit(
+                "store",
+                base,
+                str(ARRAY_HEADER + stride * index),
+                result=value.place,
+                value_type=element_type,
+            )
             self.release(value)
         return Value(base, array_type)
 
@@ -739,14 +775,14 @@ class TacGenerator(CompiscriptVisitor):
             for item, parameter in zip(contexts, function.parameters)
         ]
         for value in values:
-            self.emit("param", value.place)
+            self.emit("param", value.place, value_type=value.type)
         self.release(*values)
         label = function.label or function.name
         if function.return_type == VOID:
             self.emit("call", label, len(values))
             return Value("", VOID)
         result = self.new_temp()
-        self.emit("call", label, len(values), result)
+        self.emit("call", label, len(values), result, value_type=function.return_type)
         return Value(result, function.return_type)
 
     def _new_object(self, ctx: CompiscriptParser.NewExprContext) -> Value:
@@ -764,15 +800,15 @@ class TacGenerator(CompiscriptVisitor):
             else []
         )
         base = self.new_temp()
-        self.emit("alloc", str(class_symbol.size), result=base)
+        self.emit("alloc", str(class_symbol.size), result=base, value_type=class_symbol.type)
         # The descriptor is the class's vtable pointer; the constructor is
         # always called statically (never through it), so an override of an
         # inherited constructor label would be meaningless here.
         self.emit("store", base, "0", result=self.layout.vtable_label(class_symbol.name))
         if constructor is not None:
-            self.emit("param", base)
+            self.emit("param", base, value_type=class_symbol.type)
             for value in values:
-                self.emit("param", value.place)
+                self.emit("param", value.place, value_type=value.type)
             self.release(*values)
             self.emit("call", constructor.label, len(values) + 1)
         return Value(base, class_symbol.type)
@@ -794,9 +830,9 @@ class TacGenerator(CompiscriptVisitor):
         fn_ptr = self.new_temp()
         self.emit("load", vtable_ptr, str(slot * WORD), fn_ptr)
         self.release(Value(vtable_ptr, ERROR))
-        self.emit("param", receiver.place)
+        self.emit("param", receiver.place, value_type=receiver.type)
         for value in values:
-            self.emit("param", value.place)
+            self.emit("param", value.place, value_type=value.type)
         nargs = len(values) + 1
         self.release(receiver, *values)
         if method.return_type == VOID:
@@ -805,14 +841,14 @@ class TacGenerator(CompiscriptVisitor):
             return Value("", VOID)
         self.release(Value(fn_ptr, ERROR))
         result = self.new_temp()
-        self.emit("calli", fn_ptr, nargs, result)
+        self.emit("calli", fn_ptr, nargs, result, value_type=method.return_type)
         return Value(result, method.return_type)
 
     def _read_attribute(self, obj: Value, symbol: Optional[Symbol], ctx: Any) -> Value:
         if not isinstance(symbol, AttributeSymbol):
             return self.todo("miembro", ctx)
         result = self.new_temp()
-        self.emit("load", obj.place, str(symbol.offset), result)
+        self.emit("load", obj.place, str(symbol.offset), result, value_type=symbol.type)
         self.release(obj)
         return Value(result, symbol.type)
 
@@ -821,7 +857,7 @@ class TacGenerator(CompiscriptVisitor):
         element_type = self.type_objects.get(id(ctx), ERROR)
         offset = self._bounds_checked_offset(base, index_value, element_type)
         result = self.new_temp()
-        self.emit("load", base.place, offset.place, result)
+        self.emit("load", base.place, offset.place, result, value_type=element_type)
         self.release(base, offset)
         return Value(result, element_type)
 
@@ -830,21 +866,21 @@ class TacGenerator(CompiscriptVisitor):
         # non-negative literal can never fail the lower check, so it is skipped.
         if not index.place.isdigit():
             negative = self.new_temp()
-            self.emit("<", index.place, "0", negative)
+            self.emit("<", index.place, "0", negative, value_type=BOOLEAN)
             self.fail(negative, "Índice fuera de rango")
             self.release(Value(negative, ERROR))
         length = self.new_temp()
-        self.emit("load", base.place, "0", length)
+        self.emit("load", base.place, "0", length, value_type=INTEGER)
         cmp = self.new_temp()
-        self.emit(">=", index.place, length, cmp)
+        self.emit(">=", index.place, length, cmp, value_type=BOOLEAN)
         self.release(Value(length, ERROR))
         self.fail(cmp, "Índice fuera de rango")
         self.release(Value(cmp, ERROR))
         stride = size_of(element_type)
         scaled = self.new_temp()
-        self.emit("*", index.place, str(stride), scaled)
+        self.emit("*", index.place, str(stride), scaled, value_type=INTEGER)
         self.release(index)
         offset = self.new_temp()
-        self.emit("+", scaled, str(ARRAY_HEADER), offset)
+        self.emit("+", scaled, str(ARRAY_HEADER), offset, value_type=INTEGER)
         self.release(Value(scaled, ERROR))
         return Value(offset, INTEGER)
