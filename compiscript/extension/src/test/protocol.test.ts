@@ -12,7 +12,7 @@ import {
   summarize,
   toZeroBased,
 } from "../protocol";
-import { escapeHtml, renderSymbols, renderTac } from "../render";
+import { escapeHtml, renderMips, renderSymbols, renderTac } from "../render";
 
 describe("resolveSetting", () => {
   it("expands the workspace placeholder", () => {
@@ -70,6 +70,12 @@ describe("buildArgs", () => {
   it("adds the tac flag", () => {
     const args = buildArgs({ compilerPath: "Driver.py", sourcePath: "a.cps", tac: "json" });
     assert.ok(args.includes("--tac"));
+    assert.ok(args.includes("json"));
+  });
+
+  it("adds the mips flag", () => {
+    const args = buildArgs({ compilerPath: "Driver.py", sourcePath: "a.cps", mips: "json" });
+    assert.ok(args.includes("--mips"));
     assert.ok(args.includes("json"));
   });
 });
@@ -222,6 +228,27 @@ describe("renderTac", () => {
 
   it("escapes the file name and the TAC text", () => {
     const html = renderTac({ text: 'main:\n    print "<script>"' }, "<a>.cps");
+    assert.match(html, /&lt;a&gt;\.cps/);
+    assert.match(html, /&lt;script&gt;/);
+  });
+});
+
+describe("renderMips", () => {
+  const program = { text: "main:\n    li $v0, 10\n    syscall" };
+
+  it("renders the assembly text as one block", () => {
+    const html = renderMips(program, "a.cps");
+    assert.match(html, /<!DOCTYPE html>/);
+    assert.match(html, /main:/);
+    assert.match(html, /syscall/);
+  });
+
+  it("shows a placeholder when there is no code", () => {
+    assert.match(renderMips({ text: "" }, "a.cps"), /Sin MIPS generado/);
+  });
+
+  it("escapes the file name and the assembly text", () => {
+    const html = renderMips({ text: 'main:\n    # "<script>"' }, "<a>.cps");
     assert.match(html, /&lt;a&gt;\.cps/);
     assert.match(html, /&lt;script&gt;/);
   });

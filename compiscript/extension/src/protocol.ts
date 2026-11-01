@@ -26,6 +26,7 @@ export interface CompiscriptPayload {
   tree?: unknown;
   symbols?: unknown;
   tac?: unknown;
+  mips?: unknown;
 }
 
 /** Exit codes of the CLI. Anything else means the process itself failed. */
@@ -40,6 +41,7 @@ export interface DriverOptions {
   tree?: "none" | "lisp" | "json" | "html" | "svg";
   symbols?: "none" | "text" | "json";
   tac?: "none" | "text" | "json";
+  mips?: "none" | "text" | "json";
 }
 
 /**
@@ -64,6 +66,9 @@ export function buildArgs(options: DriverOptions): string[] {
   }
   if (options.tac && options.tac !== "none") {
     args.push("--tac", options.tac);
+  }
+  if (options.mips && options.mips !== "none") {
+    args.push("--mips", options.mips);
   }
   return args;
 }

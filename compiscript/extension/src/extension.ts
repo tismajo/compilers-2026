@@ -6,7 +6,7 @@ import * as vscode from "vscode";
 import { CompilerError, RunSettings, analyze, renderTree } from "./compiler";
 import { publish } from "./diagnostics";
 import { CompiscriptPayload, resolveSetting, summarize } from "./protocol";
-import { renderSymbols, renderTac } from "./render";
+import { renderMips, renderSymbols, renderTac } from "./render";
 import { PanelRegistry } from "./views";
 
 const LANGUAGE_ID = "compiscript";
@@ -29,6 +29,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("compiscript.showTree", showTree),
     vscode.commands.registerCommand("compiscript.showSymbols", showSymbols),
     vscode.commands.registerCommand("compiscript.showTac", showTac),
+    vscode.commands.registerCommand("compiscript.showMips", showMips),
     vscode.workspace.onDidSaveTextDocument(onSave),
     vscode.workspace.onDidCloseTextDocument((document) => collection.delete(document.uri))
   );
@@ -82,7 +83,7 @@ async function analyzeActiveDocument(verbose: boolean): Promise<CompiscriptPaylo
 async function analyzeDocument(
   document: vscode.TextDocument,
   verbose: boolean,
-  extras: { symbols?: "json"; tac?: "json" } = {}
+  extras: { symbols?: "json"; tac?: "json"; mips?: "json" } = {}
 ): Promise<CompiscriptPayload | undefined> {
   if (document.isDirty) {
     await document.save();
@@ -193,4 +194,23 @@ async function showTac(): Promise<void> {
   }
   const name = path.basename(document.uri.fsPath);
   panels.show("tac", `TAC · ${name}`, renderTac(payload.tac, name));
+}
+
+async function showMips(): Promise<void> {
+  const document = activeCompiscriptDocument();
+  if (!document) {
+    return;
+  }
+  const payload = await analyzeDocument(document, false, { mips: "json" });
+  if (!payload) {
+    return;
+  }
+  if (!payload.mips) {
+    void vscode.window.showWarningMessage(
+      "El archivo tiene errores, así que no se generó MIPS."
+    );
+    return;
+  }
+  const name = path.basename(document.uri.fsPath);
+  panels.show("mips", `MIPS · ${name}`, renderMips(payload.mips, name));
 }

@@ -60,6 +60,10 @@
       {
         "command": "compiscript.showTac",
         "title": "Compiscript: Generar código intermedio"
+      },
+      {
+        "command": "compiscript.showMips",
+        "title": "Compiscript: Generar MIPS"
       }
     ],
     "menus": {

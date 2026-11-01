@@ -21,6 +21,7 @@ from CompiscriptLexer import CompiscriptLexer
 from CompiscriptParser import CompiscriptParser
 import treeview
 import tac
+import mips
 from semantic import analyze
 from semantic.analyzer import SemanticResult
 from semantic.diagnostics import Diagnostic
@@ -39,6 +40,7 @@ class AnalysisResult:
     types: dict[int, str] = field(default_factory=dict)
     semantic: SemanticResult | None = None
     tac: tac.TacProgram | None = None
+    mips: mips.MipsProgram | None = None
 
     @property
     def success(self) -> bool:
@@ -74,6 +76,8 @@ class AnalysisResult:
             payload["symbols"] = self.symbols.as_dict()
         if self.tac is not None:
             payload["tac"] = self.tac.as_dict()
+        if self.mips is not None:
+            payload["mips"] = self.mips.as_dict()
         return payload
 
     def generate_tac(self) -> tac.TacProgram | None:
@@ -82,6 +86,13 @@ class AnalysisResult:
             return None
         self.tac = tac.generate(self.tree, self.semantic)
         return self.tac
+
+    def generate_mips(self) -> mips.MipsProgram | None:
+        """MIPS assembly, only once the TAC it translates already exists."""
+        if self.tac is None or self.symbols is None:
+            return None
+        self.mips = mips.generate(self.tac, self.symbols)
+        return self.mips
 
 
 class CollectingErrorListener(ErrorListener):
@@ -191,6 +202,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Generate three-address code (text, or a 'tac' field with --format json)",
     )
     parser.add_argument(
+        "--mips",
+        choices=("none", "text", "json"),
+        default="none",
+        help="Generate MIPS assembly from the TAC (text, or a 'mips' field with --format json)",
+    )
+    parser.add_argument(
         "--no-semantic",
         action="store_true",
         help="Stop after the syntax phase",
@@ -263,8 +280,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     result = analyze_file(path, semantic=not args.no_semantic)
     # Before building the payload: generating TAC also fills the addresses
     # and activation records that ``--symbols`` prints.
-    if args.tac != "none":
+    if args.tac != "none" or args.mips != "none":
         result.generate_tac()
+    if args.mips != "none":
+        result.generate_mips()
     payload = result.as_dict(args.tree, args.symbols)
 
     document = tree_document(
@@ -296,6 +315,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(result.tac.render())
             else:
                 print("No se generó código intermedio: el programa tiene errores.", file=sys.stderr)
+        if args.mips != "none":
+            if result.mips is not None:
+                print(result.mips.render())
+            else:
+                print("No se generó MIPS: el programa tiene errores.", file=sys.stderr)
 
     return 0 if result.success else 1
 

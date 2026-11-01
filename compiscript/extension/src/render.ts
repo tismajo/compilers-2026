@@ -88,6 +88,29 @@ function renderTacBlock(block: string): string {
   return `<details open><summary>${escapeHtml(summary)}</summary><pre>${escapeHtml(rest)}</pre></details>`;
 }
 
+interface MipsPayload {
+  text?: string;
+}
+
+/** Render the MIPS exported by `--mips json`. Same reasoning as `renderTac`:
+ * the assembly text Python already rendered, shown as-is, never
+ * re-translated in TypeScript. Unlike TAC, MIPS functions are not separated
+ * by blank lines in the output, so this is one plain block rather than a
+ * section per function. */
+export function renderMips(payload: unknown, fileName: string): string {
+  const mips = payload as MipsPayload | undefined;
+  const text = mips?.text ?? "";
+  const body = text.trim().length > 0 ? `<pre>${escapeHtml(text)}</pre>` : "<p>Sin MIPS generado.</p>";
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>MIPS</title>
+<style>
+body { font: 13px/1.5 ui-monospace, Consolas, monospace; padding: 16px; }
+h1 { font-size: 15px; margin: 0 0 12px; }
+pre { white-space: pre; }
+</style></head>
+<body><h1>MIPS · ${escapeHtml(fileName)}</h1>${body}</body></html>`;
+}
+
 function renderScope(scope: ScopePayload): string {
   const rows = scope.symbols
     .map(
