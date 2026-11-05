@@ -98,6 +98,42 @@ class ControlFlowTests(MipsTestCase):
         )
         self.assert_no_todo(self.mips_text(source))
 
+    def test_foreach_index_and_length_survive_the_loop(self) -> None:
+        # Regression: ``idx``/``length`` are plain TAC temps reused across
+        # every iteration (``tac/generator.py``'s ``visitForeachStatement``),
+        # which crosses several basic blocks — the one case a temp does not
+        # die inside the block that created it. Without writing them through
+        # to memory on every definition, the loop condition reads garbage
+        # the moment a block boundary resets the register allocator.
+        source = (
+            "let numbers: integer[] = [1, 2, 3];\n"
+            "foreach (n in numbers) { print(n); }\n"
+        )
+        self.assert_no_todo(self.mips_text(source))
+
+    def test_switch_fallthrough_has_no_todo(self) -> None:
+        source = (
+            "let x: integer = 7;\n"
+            "switch (x) {\n"
+            "  case 7:\n"
+            "    print(\"seven\");\n"
+            "  default:\n"
+            "    print(\"other\");\n"
+            "}\n"
+        )
+        self.assert_no_todo(self.mips_text(source))
+
+    def test_try_catch_bounds_failure_has_no_todo(self) -> None:
+        source = (
+            "let numbers: integer[] = [1, 2, 3];\n"
+            "try {\n"
+            "  print(numbers[10]);\n"
+            "} catch (err) {\n"
+            "  print(err);\n"
+            "}\n"
+        )
+        self.assert_no_todo(self.mips_text(source))
+
 
 class StringTests(MipsTestCase):
     def test_concat_and_tostr_use_the_runtime_routines(self) -> None:
@@ -112,18 +148,38 @@ class StringTests(MipsTestCase):
         self.assertIn("jal __print_bool", text)
 
 
-class PendingConstructTests(MipsTestCase):
-    def test_array_access_emits_a_todo_instead_of_crashing(self) -> None:
+class ArraysClassesAndDispatchTests(MipsTestCase):
+    def test_array_literal_and_indexed_read_have_no_todo(self) -> None:
         text = self.mips_text("let a: integer[] = [1, 2, 3];\nprint(a[0]);\n")
-        self.assertIn("TODO MIPS", text)
+        self.assert_no_todo(text)
+        self.assertIn("jal __alloc", text)
+        # header (element count) then the three elements, in order
+        self.assertIn("sw $t1, 0($t0)", text)
 
-    def test_class_use_emits_a_todo_instead_of_crashing(self) -> None:
+    def test_class_construction_and_virtual_dispatch_have_no_todo(self) -> None:
+        # Dynamic dispatch always goes through the vtable (even with no
+        # override in sight), so a plain method call should still compile
+        # to an indirect jump, not a direct ``jal`` to the method's label.
         source = (
             "class Animal { let name: string; function speak(): string { return this.name; } }\n"
             'let a: Animal = new Animal();\n'
+            "print(a.speak());\n"
         )
         text = self.mips_text(source)
-        self.assertIn("TODO MIPS", text)
+        self.assert_no_todo(text)
+        self.assertIn("Animal_vtable: .word Animal_speak", text)
+        self.assertIn("jalr", text)
+        self.assertNotIn("jal Animal_speak", text)
+
+    def test_overriding_subclass_gets_its_own_vtable_slot(self) -> None:
+        source = (
+            "class Animal { function speak(): string { return \"...\"; } }\n"
+            "class Dog : Animal { function speak(): string { return \"woof\"; } }\n"
+            'let d: Dog = new Dog();\n'
+        )
+        text = self.mips_text(source)
+        self.assert_no_todo(text)
+        self.assertIn("Dog_vtable: .word Dog_speak", text)
 
 
 if __name__ == "__main__":

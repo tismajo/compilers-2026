@@ -109,6 +109,87 @@ class ControlFlowTests(MarsTestCase):
         self.assertEqual("011011", self.run_source(source))
 
 
+class ArraysClassesAndControlFlowTests(MarsTestCase):
+    def test_array_literal_with_more_elements_than_spare_registers(self) -> None:
+        # Regression: building a 5-element array needs more concurrently
+        # "held" registers (base pointer, index, five computed values) than
+        # the allocator reclaims on its own within one block, which used to
+        # force a spill that picked the base pointer — still needed for the
+        # next store — over an already-dead, already-in-memory literal.
+        source = (
+            "function getMultiples(n: integer): integer[] {\n"
+            "  let result: integer[] = [n * 1, n * 2, n * 3, n * 4, n * 5];\n"
+            "  return result;\n"
+            "}\n"
+            "let m: integer[] = getMultiples(2);\n"
+            'print(m[0] + ", " + m[1] + ", " + m[2] + ", " + m[3] + ", " + m[4]);\n'
+        )
+        self.assertEqual("2, 4, 6, 8, 10", self.run_source(source))
+
+    def test_foreach_over_an_array(self) -> None:
+        source = (
+            "let numbers: integer[] = [10, 20, 30];\n"
+            "foreach (n in numbers) { print(n); }\n"
+        )
+        self.assertEqual("102030", self.run_source(source))
+
+    def test_foreach_continue_and_break(self) -> None:
+        source = (
+            "let numbers: integer[] = [1, 2, 3, 4, 5];\n"
+            "foreach (n in numbers) {\n"
+            "  if (n == 3) { continue; }\n"
+            "  if (n > 4) { break; }\n"
+            "  print(n);\n"
+            "}\n"
+        )
+        self.assertEqual("124", self.run_source(source))
+
+    def test_switch_falls_through_every_case_without_a_break(self) -> None:
+        source = (
+            "switch (7) {\n"
+            "  case 7:\n"
+            "    print(\"seven\");\n"
+            "  case 6:\n"
+            "    print(\"six\");\n"
+            "  default:\n"
+            "    print(\"other\");\n"
+            "}\n"
+        )
+        self.assertEqual("sevensixother", self.run_source(source))
+
+    def test_try_catch_recovers_from_an_out_of_range_index(self) -> None:
+        source = (
+            "let numbers: integer[] = [1, 2, 3];\n"
+            "try {\n"
+            "  print(numbers[10]);\n"
+            "} catch (err) {\n"
+            "  print(\"caught\");\n"
+            "}\n"
+        )
+        self.assertEqual("caught", self.run_source(source))
+
+    def test_virtual_dispatch_calls_the_overriding_method(self) -> None:
+        source = (
+            "class Animal { function speak(): string { return \"...\"; } }\n"
+            "class Dog : Animal { function speak(): string { return \"woof\"; } }\n"
+            "let d: Dog = new Dog();\n"
+            "print(d.speak());\n"
+        )
+        self.assertEqual("woof", self.run_source(source))
+
+    def test_attribute_read_and_write_through_this(self) -> None:
+        source = (
+            "class Counter {\n"
+            "  let value: integer;\n"
+            "  function constructor(start: integer) { this.value = start; }\n"
+            "  function get(): integer { return this.value; }\n"
+            "}\n"
+            "let c: Counter = new Counter(41);\n"
+            "print(c.get());\n"
+        )
+        self.assertEqual("41", self.run_source(source))
+
+
 class StringAndBooleanTests(MarsTestCase):
     def test_tostr_and_concat(self) -> None:
         source = 'let x: integer = 5;\nprint("x = " + x);\n'
