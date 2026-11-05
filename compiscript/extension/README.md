@@ -49,8 +49,9 @@ separado y el proceso se lanza sin shell.
 | `Compiscript: Mostrar árbol` | Abre el árbol sintáctico interactivo en un panel. |
 | `Compiscript: Mostrar tabla de símbolos` | Abre la tabla de símbolos por ámbitos. |
 | `Compiscript: Generar código intermedio` | Abre el TAC generado (una sección por función) en un panel. |
+| `Compiscript: Generar MIPS` | Abre el ensamblador MIPS generado a partir del TAC en un panel. |
 
-Los cuatro aparecen en la paleta de comandos, y los dos primeros también en el
+Los cinco aparecen en la paleta de comandos, y los dos primeros también en el
 menú contextual de un archivo `.cps`.
 
 ## Diagnósticos

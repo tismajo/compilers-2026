@@ -212,8 +212,20 @@ memoria de arreglos y objetos, vtable, manejo de `try`/`catch` y el límite
 deliberado de las excepciones y los closures— está en
 [lenguaje intermedio](lenguaje-intermedio.md).
 
+## Generación de código MIPS
+
+`program/mips/` (`blocks.py`, `registers.py`, `callseq.py`, `runtime.py`,
+`emitter.py`) traduce el TAC ya generado a ensamblador MIPS real, ejecutable
+en el simulador MARS. Reutiliza directamente las direcciones y los registros
+de activación que `program/tac/layout.py` ya calculó — no recalcula nada de
+eso. El diseño completo —asignación de registros (`get_reg()`), secuencia de
+llamada y retorno, modelo de memoria del frame, y qué queda fuera de esta
+etapa (arreglos, clases, closures)— está en
+[generación de código MIPS](generacion-mips.md).
+
 ## Qué no incluye esta entrega
 
-Generación de código MIPS. `README_CODE_GENERATION.md` describe esa fase
-posterior del curso; la arquitectura la anticipa con las direcciones y los
-registros de activación que `program/tac/layout.py` ya calcula.
+Arreglos, objetos, clases con vtable y closures traducidos a MIPS (la fase de
+TAC ya los traduce; el back-end de MIPS llega hasta aritmética, control de
+flujo y funciones en esta etapa). Ver la sección "Fuera de alcance" de
+[generación de código MIPS](generacion-mips.md).

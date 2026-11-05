@@ -96,6 +96,7 @@ en la salida de error:
 | `--tree-out` | ruta | Escribe el árbol en un archivo en vez de imprimirlo |
 | `--symbols` | `none`, `text`, `json` | Incluye la tabla de símbolos |
 | `--tac` | `none`, `text`, `json` | Genera el código intermedio (TAC); solo si el programa no tiene errores |
+| `--mips` | `none`, `text`, `json` | Genera ensamblador MIPS a partir del TAC (activa `--tac` si hace falta) |
 | `--no-semantic` | — | Se detiene en la fase sintáctica |
 
 ### Códigos de salida
@@ -152,6 +153,17 @@ python3 program/Driver.py program/program.cps --format json --tac json --symbols
 
 El diseño del lenguaje intermedio está en
 [lenguaje intermedio](lenguaje-intermedio.md).
+
+Ensamblador MIPS, a partir de ese mismo TAC:
+
+```bash
+python3 program/Driver.py program/program.cps --mips text
+java -jar Mars.jar nc sm ae1 se1 programa.asm   # correrlo en el simulador
+```
+
+El diseño del back-end de MIPS, cómo conseguir `Mars.jar` y qué queda fuera
+de esta etapa están en
+[generación de código MIPS](generacion-mips.md).
 
 ## Visualización del árbol
 

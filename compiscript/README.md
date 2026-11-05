@@ -297,6 +297,7 @@ program.cps
 | [`docs/pruebas.md`](docs/pruebas.md) | Organización de la suite, fixtures, cobertura e integración continua |
 | [`docs/decisiones.md`](docs/decisiones.md) | Contradicciones del enunciado y qué se decidió en cada caso |
 | [`docs/lenguaje-intermedio.md`](docs/lenguaje-intermedio.md) | Diseño del código de tres direcciones: instrucciones, memoria, vtable, closures |
+| [`docs/generacion-mips.md`](docs/generacion-mips.md) | Back-end de MIPS: asignación de registros, secuencia de llamada, runtime, cómo correrlo en MARS |
 | [`extension/README.md`](extension/README.md) | Instalación, configuración y comandos del IDE |
 
 ## Frontend sintáctico
@@ -367,6 +368,20 @@ python3 program/Driver.py program/program.cps --format json --tac json --symbols
 El diseño del lenguaje intermedio —instrucciones, layout de arreglos y
 objetos, despacho de métodos por vtable, `try`/`catch` y closures— está
 documentado en [`docs/lenguaje-intermedio.md`](docs/lenguaje-intermedio.md).
+
+## Generación de código MIPS
+
+Y, a partir de ese mismo TAC, ensamblador MIPS real, ejecutable en el
+simulador [MARS](https://github.com/dpetersanderson/MARS):
+
+```bash
+python3 program/Driver.py program/program.cps --mips text
+java -jar Mars.jar nc sm ae1 se1 programa.asm
+```
+
+El diseño del back-end —asignación de registros (`get_reg()`), secuencia de
+llamada y retorno, y qué construcciones quedan fuera de esta etapa— está en
+[`docs/generacion-mips.md`](docs/generacion-mips.md).
 
 ## IDE: extensión de VS Code
 
