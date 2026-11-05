@@ -5,12 +5,13 @@ generado a ensamblador MIPS real, ejecutable en un simulador. Complementa
 [lenguaje intermedio](lenguaje-intermedio.md), que describe el TAC que esta
 fase toma como entrada.
 
-> **Estado:** etapa 1 (núcleo). Cubre aritmética, conversiones, concatenación
-> de strings, control de flujo, y llamadas/retornos de función — incluida la
-> recursión. Arreglos, clases con vtable, `foreach`/`switch`/`try-catch` y
-> closures quedan para una etapa siguiente; el generador emite un comentario
-> `# TODO MIPS <op>` para esas construcciones en vez de fallar. Ver la
-> sección 7, Fuera de alcance.
+> **Estado:** etapas 1 y 2 completas. Cubre aritmética, conversiones,
+> concatenación de strings, control de flujo, llamadas/retornos de función
+> (incluida la recursión), arreglos, clases con vtable y despacho dinámico
+> (`calli`), `foreach`, `switch` y `try`/`catch`. Verificado de punta a punta
+> contra `program/program.cps` completo en MARS real (sección 2). Las
+> closures (el enlace de acceso) quedan pendientes — ver la sección 11,
+> Fuera de alcance.
 
 ## 1. Cómo generarlo
 
@@ -108,6 +109,49 @@ y la versión que de verdad corre en MARS
 (`test_simulator.py::test_if_else_join_reads_the_branch_that_actually_ran`)
 cubren exactamente este caso.
 
+### Dos temporales que sí sobreviven su propio bloque (`foreach`)
+
+La garantía de la sección anterior ("un temporal nunca sobrevive más allá del
+final de su propio bloque") la sostiene `program/tac/temps.py` para casi todo
+— pero `visitForeachStatement` (`program/tac/generator.py`) le pide prestados
+dos temporales (`idx`, el índice, y `length`, la longitud ya leída) para todo
+el ciclo, a propósito: para cuando el `foreach` se genera, `Layout` ya corrió
+y no queda dónde reservarles un slot de variable real. Esos dos temporales sí
+cruzan varios bloques (la condición, el cuerpo, el `continue`). Lo mismo le
+puede pasar al sujeto de un `switch` si es una expresión en vez de una
+variable simple (cada comparación `case` es su propio bloque).
+
+`MipsGenerator._find_cross_block_temps` (`emitter.py`) detecta, por función,
+qué temporales aparecen en más de un bloque básico y los trata exactamente
+como una variable con nombre (*write-through* en cada definición), no como un
+temporal de registro. El resto de los temporales sigue por el camino rápido
+sin cambios. `tests/mipsgen/test_emitter.py::test_foreach_index_and_length_survive_the_loop`
+y `test_simulator.py::test_foreach_over_an_array`/`test_foreach_continue_and_break`
+cubren esto — sin el fix, la longitud leída antes del ciclo se perdía en el
+primer reinicio de bloque y la condición de salida leía basura.
+
+### `get_reg()` necesita ver más allá del cuádruplo actual para derramar bien
+
+Un segundo bug real, encontrado con el mismo ejemplo (un arreglo con más
+elementos que registros libres, `[n*1, n*2, n*3, n*4, n*5]`): `info` originalmente
+solo traía las variables que *ese* cuádruplo tocaba — así que, al decidir a
+quién derramar para cargar un literal como `4`, el puntero base del arreglo
+(usado varias instrucciones antes y varias después, pero no en este
+cuádruplo) no aparecía en `info` y se leía como "muerto", cuando en realidad
+hacía falta para el siguiente `store`. `blocks.py`'s `annotate()` ahora
+guarda, en cada posición, el estado de **todo** nombre vivo desde ese punto
+hasta el final del bloque, no solo los del cuádruplo puntual.
+
+Un tercer bug, más sutil, apareció al arreglar el segundo: `SpillPolicy.choose`
+comparaba `(needs_store, distancia)` con `max()`, y como `True > False` en
+Python, esto preferiría derramar un registro que **sí** necesita guardarse
+sobre uno que ya está a salvo en memoria — exactamente lo opuesto a lo que
+dice su propio docstring. Ningún test existente lo detectaba porque ninguno
+tenía un caso con `needs_store` distinto entre candidatos. Corregido invirtiendo
+el primer término a `free_to_spill = not needs_store`.
+`tests/mipsgen/test_simulator.py::test_array_literal_with_more_elements_than_spare_registers`
+cubre el caso real que expuso ambos bugs.
+
 ## 5. Secuencia de llamada y retorno
 
 Exactamente el diseño de los diagramas del equipo:
@@ -138,8 +182,16 @@ move Rt,$v0                                  addiu $sp,$sp,8 ; jr $ra
 - **`main` no tiene llamador**: nunca se alcanza por `jal`, así que su
   "epílogo" no es `jr $ra` (saltaría a una dirección basura) sino el syscall
   de salida (`li $v0,10 ; syscall`).
-- **Llamada indirecta** (`calli`, para despacho por vtable — próxima etapa):
-  `jalr` en vez de `jal`.
+- **Llamada indirecta** (`calli`, para despacho por vtable — sección 7):
+  `jalr` en vez de `jal`, con el resto de la secuencia (reservar/guardar
+  argumentos, `spill_all`, leer el resultado) idéntico a `call`;
+  `MipsGenerator._emit_arguments`/`_finish_call_result` comparten ese código
+  entre ambos. El registro que guarda la dirección del método se recarga
+  **después** de `spill_all`, no antes: guardarlo antes y usar el mismo
+  nombre de registro más tarde arriesgaría que un argumento posterior lo
+  reutilice (el registro físico ya tendría otro valor para entonces);
+  recargarlo fresco desde su *home* evita el problema sin importar qué
+  registro le toque.
 
 ### El frame, con direcciones reales
 
@@ -177,8 +229,11 @@ toma la instancia más simple de un diseño que sigue siendo válido:
    mantener alguno preservado en un `$s` a través de la llamada. Es
    correcto, solo que no optimiza los valores que "sobreviven" una llamada.
    Promoverlos a `$s` es una optimización real, pendiente.
-2. **El enlace de acceso (closures) no está conectado todavía.** Las
-   closures son parte de la etapa siguiente junto con arreglos y clases.
+2. **El enlace de acceso (closures) no está conectado todavía.** Ver la
+   sección 11 — no es solo una traducción pendiente a MIPS: la fase de TAC
+   tampoco modela todavía un enlace de acceso (resuelve nombres capturados de
+   forma plana), así que conectarlo de verdad es trabajo de diseño nuevo en
+   ambas fases, no solo en esta.
 
 Una decisión nueva, no anticipada por los diagramas (que no mencionan
 `$f`, centrados en un ejemplo entero puro):
@@ -201,10 +256,33 @@ el término extra en la fórmula del frame de la sección 5. El generador lo
 calcula con un barrido simple: cualquier cuádruplo cuyo `type` sea `"float"`
 y cuyo resultado sea un temporal marca ese nombre para 8 bytes.
 
-## 7. `alloc`, por qué sí entra en esta etapa
+## 7. Arreglos, objetos y despacho dinámico (`load`/`store`/`calli`)
 
-Arreglos y objetos (`load`/`store`/`calli` sobre ellos) quedan para la
-siguiente etapa, pero `alloc` en sí **sí** se traduce ya, porque `concat` lo
+Todo acceso indexado o a un atributo —arreglo o campo de objeto— ya pasó por
+el mismo cuádruplo genérico desde la fase de TAC: `load base, offset, result`
+o `store base, offset, result=valor`. `offset` es siempre una cantidad de
+bytes: un literal se pliega directo en el operando de la instrucción
+(`lw $t0, 12($t1)`); un nombre (índice ya escalado por el tamaño del
+elemento) necesita un `add` a un registro de dirección primero, porque MIPS
+no tiene direccionamiento registro+registro. `MipsGenerator._effective_address`
+hace exactamente esa distinción, compartida entre `_load` y `_store`.
+
+El único caso especial es el valor de un `store` cuando es la etiqueta de una
+vtable (`*(this + 0) = Dog_vtable`, el puntero a la tabla de despacho que
+pone `new`): no es ni un nombre ni un literal ordinario, así que necesita su
+*dirección* (`la`), no un valor — `_store` lo detecta comparando contra el
+conjunto de etiquetas de vtable que `MipsGenerator.__init__` ya conoce
+(`{item.label for item in tac.vtables}`).
+
+Las vtablas mismas se declaran en `.data` como una palabra por método
+(`Dog_vtable: .word Animal_speak, Dog_speak`) — MARS resuelve cada etiqueta a
+su dirección real, igual que la tabla de literales de un compilador de C. Una
+clase sin métodos todavía necesita un `.word 0` de relleno (nunca se
+despacha a través de él). El despacho dinámico (`calli`) usa `jalr` sobre el
+registro que el `load` anterior dejó con la dirección del método — ver la
+nota de la sección 5.
+
+`alloc` en sí ya estaba traducido desde la etapa 1, porque `concat` lo
 necesita para ser correcto. Una concatenación encadenada
 (`"a" + b + "c"`) genera dos cuádruplos `concat` seguidos, el segundo
 leyendo el resultado del primero — si ambos escribieran a un mismo buffer
@@ -268,30 +346,40 @@ mismos sitios donde `program/tac/generator.py` ya llama a `emit()` (con
 texto de `--tac` (los 257 tests previos de esa fase siguen pasando sin
 tocarlos).
 
-## 11. Fuera de alcance de esta etapa
+## 11. Fuera de alcance
 
-- Arreglos y objetos: `load`, `store`, `alloc` de objeto y acceso a atributos
-  — el generador emite `# TODO MIPS <op>` para estos cuádruplos.
-- Clases, vtable y despacho dinámico (`calli`).
-- `foreach`, `switch`, `try`/`catch`.
-- Closures (el enlace de acceso, sección 6).
+- **Closures que capturan una variable de una función envolvente** (el
+  enlace de acceso). La fase de TAC resuelve nombres capturados de forma
+  plana (sin modelar un enlace de acceso todavía — ver `docs/lenguaje-intermedio.md`),
+  lo cual ya funciona para una función anidada que se llama mientras la
+  función que la define sigue en la pila (el caso que de hecho ejercitan
+  `makeAdder`/`getMultiples` en `program.cps`, ninguna de las dos una
+  closure real). Una closure que escapa — se guarda y se llama después de
+  que su función envolvente ya retornó — leería una dirección de pila que ya
+  no es válida; detectar y resolver eso bien es trabajo de diseño nuevo en
+  la fase de TAC, no solo una traducción pendiente a MIPS, y no lo ejercita
+  ningún programa de prueba actual.
 - División por cero y acceso a `null` como fallos en tiempo de ejecución
   (ya fuera de alcance desde la fase de TAC).
 - Comparación entre dos valores `float` (sección 6, punto 3).
 - Promoción de valores a registros `$s` — toda esta etapa usa solo `$t0`–`$t9`.
+- **Caracteres no ASCII en literales de cadena** (por ejemplo la tilde de
+  "Índice fuera de rango"): `.asciiz` guarda los bytes UTF-8 tal cual, y el
+  syscall de impresión de MARS los muestra byte por byte, no como texto
+  UTF-8 — el resultado es legible pero la tilde sale como dos caracteres
+  corruptos. Cosmético, no afecta el control de flujo ni el valor de ninguna
+  variable (`test_simulator.py::test_try_catch_recovers_from_an_out_of_range_index`
+  verifica el mensaje sin tildes para evitar depender de esto). Arreglarlo
+  bien necesitaría una rutina de impresión UTF-8-aware, fuera del alcance de
+  esta entrega.
 
-**Importante:** `# TODO MIPS <op>` es un comentario, no una instrucción — no
-detiene el ensamblado ni la simulación. Un programa que mezcla construcciones
-cubiertas con construcciones fuera de alcance (`program.cps` completo, por
-ejemplo, que además de aritmética y funciones usa `foreach` y clases) sigue
-ensamblando y corriendo, pero el comportamiento a partir del primer `TODO`
-que se ejecuta de verdad queda indefinido: por ejemplo, el `foreach` de
-`program.cps` depende de un `load` no traducido para leer tanto la longitud
-del arreglo como cada elemento, así que su condición de salida nunca se
-actualiza y el ciclo no termina como debería. Lo que sí está en el alcance de
-esta etapa (aritmética, condicionales, `while`/`for`, funciones recursivas) se
-verificó aislado — sección 2 y `test_simulator.py` — no mezclado con lo que
-todavía no se traduce.
+Lo que sí es parte de esta entrega (aritmética, condicionales, `while`/`for`/
+`foreach`, funciones recursivas, arreglos, clases con vtable, `switch`,
+`try`/`catch`) se verificó tanto aislado como junto, corriendo
+`program/program.cps` completo en MARS real de punta a punta (sección 2) —
+termina con código de salida `0` e imprime exactamente lo esperado para cada
+construcción, incluida la cadena de despacho dinámico `Dog.speak()` que
+imprime `"Rex barks."` (no el método heredado de `Animal`).
 
 ## 12. Pruebas
 
@@ -305,6 +393,8 @@ todavía no se traduce.
 | `test_simulator.py` | Los mismos programas, corridos de verdad en MARS, comparando la salida real — se omite sin Java/`Mars.jar` |
 
 Todo lo que `test_simulator.py` verifica (factorial recursivo, aritmética con
-negativos, `if`/`else`, `while`, floats, concatenación encadenada, booleanos)
-corrió contra el simulador real durante el desarrollo, no solo se trazó a
-mano.
+negativos, `if`/`else`, `while`, floats, concatenación encadenada, booleanos,
+arreglos, `foreach` con `continue`/`break`, `switch` con fallthrough,
+`try`/`catch`, despacho dinámico, atributos vía `this`) corrió contra el
+simulador real durante el desarrollo, no solo se trazó a mano — incluyendo
+`program/program.cps` completo (sección 2).
