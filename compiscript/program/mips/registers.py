@@ -51,8 +51,11 @@ class SpillPolicy:
         def cost(reg: str) -> tuple[bool, int]:
             names = self.allocator.register_holds[reg]
             # Spilling is free if every name in the register already has a
-            # memory copy; otherwise at least one store is needed.
-            needs_store = any(
+            # memory copy; otherwise at least one store is needed. The tuple
+            # must rank "free to spill" *above* "needs a store" so max()
+            # picks it first — i.e. this is ``not needs_store``, not
+            # ``needs_store`` itself.
+            free_to_spill = not any(
                 not self.allocator.descriptor(name).in_memory for name in names
             )
             # Farthest next use wins (None, i.e. "not needed again", wins
@@ -61,9 +64,9 @@ class SpillPolicy:
             for name in names:
                 use = info.get(name)
                 if use is None or not use.live:
-                    return (needs_store, 10**9)
+                    return (free_to_spill, 10**9)
                 furthest = max(furthest, use.next_use if use.next_use is not None else 10**9)
-            return (needs_store, furthest)
+            return (free_to_spill, furthest)
 
         return max(candidates, key=cost)
 
@@ -186,14 +189,25 @@ class RegisterAllocator:
             descriptor.registers.discard(reg)
         self.register_holds[reg] = set()
 
-    def ensure_in_register(self, name: str, prefer_saved: bool = False) -> str:
+    def ensure_in_register(
+        self, name: str, info: Optional[dict[str, UseInfo]] = None, prefer_saved: bool = False
+    ) -> str:
         """A value the emitter needs available in *some* register right now
         (an operand about to be read): return one of its current registers,
-        or reload it from memory into a fresh one."""
+        or reload it from memory into a fresh one.
+
+        ``info`` should be the *current quad's* own next-use info whenever
+        the caller has it — if a spill is needed to free a register, that is
+        the only way ``SpillPolicy`` can tell a register that holds a value
+        this exact quad still needs (not reflected in ``quad_uses``, since
+        this call is not the one that will consume ``name`` as its own
+        operand) apart from one that is genuinely dead. Passed as ``{}``
+        only where no better info is available (e.g. loading a literal that
+        is certain to die immediately after)."""
         descriptor = self.descriptor(name)
         if descriptor.registers:
             return next(iter(descriptor.registers))
-        reg = self.get_reg([], None, {}, prefer_saved=prefer_saved)
+        reg = self.get_reg([], None, info or {}, prefer_saved=prefer_saved)
         self.emitted.append(f"    lw {reg}, {self.home_of(name)}")
         self.bind(name, reg)
         return reg
