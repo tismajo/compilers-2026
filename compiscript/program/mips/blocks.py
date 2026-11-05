@@ -132,7 +132,20 @@ class Block:
 
     def annotate(self) -> None:
         """Backward scan: for each quad, record the live/next-use state of
-        every name it touches, as of just before that quad executes."""
+        every name touched anywhere from this point to the end of the block
+        (not just the ones this particular quad reads or writes), as of just
+        before that quad executes.
+
+        The wider snapshot matters to ``SpillPolicy`` (``registers.py``): it
+        judges a candidate register by whatever name it currently holds,
+        which is almost never one of *this* quad's own operands (a register
+        holding a function's base pointer, say, while the current quad is an
+        unrelated multiply several instructions later). A narrower dict keyed
+        only to the current quad's own names would make ``info.get(...)``
+        return ``None`` for that holder and read as "dead" — wrongly, since
+        it is simply not involved in this particular instruction — and spill
+        a value that is still needed, rather than one that is actually dead.
+        """
         state: dict[str, UseInfo] = {}
         self.info = [dict() for _ in self.quads]
         for index in range(len(self.quads) - 1, -1, -1):
@@ -141,9 +154,10 @@ class Block:
             names = list(uses)
             if definition is not None and definition not in names:
                 names.append(definition)
-            self.info[index] = {
-                name: state.get(name) or _live_on_exit(name) for name in names
-            }
+            snapshot = dict(state)
+            for name in names:
+                snapshot[name] = state.get(name) or _live_on_exit(name)
+            self.info[index] = snapshot
             if definition is not None:
                 state[definition] = UseInfo(live=False, next_use=None)
             for name in uses:
